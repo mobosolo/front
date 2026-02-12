@@ -1,0 +1,39 @@
+{
+  "project_info": {
+    "project_number": "1080370938209",
+    "project_id": "meal-flavor",
+    "storage_bucket": "meal-flavor.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1080370938209:android:3ca23b53bed6b87a8c8520",
+        "android_client_info": {
+          "package_name": "com.example.front"
+        }
+      },
+      "oauth_client": [
+        {
+          "client_id": "1080370938209-3qc0c8vpn4oou419mitoit1e2jd33bqm.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBcQTTkBTk4lA0IHOIFjh-6rqmw2f_f15E"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": [
+            {
+              "client_id": "1080370938209-3qc0c8vpn4oou419mitoit1e2jd33bqm.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

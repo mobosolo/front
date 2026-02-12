@@ -1,0 +1,127 @@
+import 'package:dio/dio.dart';
+import 'package:front/features/baskets/models/basket_model.dart';
+import 'package:front/features/baskets/models/basket_summary_model.dart';
+
+class BasketService {
+  final Dio _dio;
+
+  BasketService(this._dio);
+
+  Future<void> createBasket({
+    required String title,
+    String? description,
+    String? category,
+    required int originalPrice,
+    required int discountedPrice,
+    required int quantity,
+    required DateTime pickupTimeStart,
+    required DateTime pickupTimeEnd,
+    String? photoURL,
+  }) async {
+    try {
+      final response = await _dio.post(
+        '/baskets',
+        data: {
+          'title': title,
+          'description': description,
+          'category': category,
+          'originalPrice': originalPrice,
+          'discountedPrice': discountedPrice,
+          'quantity': quantity,
+          'pickupTimeStart': pickupTimeStart.toIso8601String(),
+          'pickupTimeEnd': pickupTimeEnd.toIso8601String(),
+          'photoURL': photoURL,
+        },
+      );
+      // Backend returns a partial basket object on create; no parsing needed here.
+      if (response.statusCode != 201) {
+        throw Exception('Basket creation failed with unexpected status.');
+      }
+    } on DioException catch (e) {
+      print('DioError creating basket: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  Future<List<BasketSummary>> getBaskets({
+    double? lat,
+    double? lon,
+    int? radius,
+    String? category,
+    int? maxPrice,
+  }) async {
+    try {
+      final response = await _dio.get(
+        '/baskets',
+        queryParameters: {
+          'lat': lat,
+          'lon': lon,
+          'radius': radius,
+          'category': category,
+          'maxPrice': maxPrice,
+        },
+      );
+      return (response.data as List).map((json) => BasketSummary.fromJson(json)).toList();
+    } on DioException catch (e) {
+      print('DioError fetching baskets: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  Future<Basket> getBasketDetails(String id) async {
+    try {
+      final response = await _dio.get('/baskets/$id');
+      return Basket.fromJson(response.data);
+    } on DioException catch (e) {
+      print('DioError fetching basket details: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  Future<Basket> updateBasket(
+    String id, {
+    required String title,
+    String? description,
+    String? category,
+    required int originalPrice,
+    required int discountedPrice,
+    required int quantity,
+    required DateTime pickupTimeStart,
+    required DateTime pickupTimeEnd,
+    String? photoURL,
+  }) async {
+    try {
+      final response = await _dio.put(
+        '/baskets/$id',
+        data: {
+          'title': title,
+          'description': description,
+          'category': category,
+          'originalPrice': originalPrice,
+          'discountedPrice': discountedPrice,
+          'quantity': quantity,
+          'pickupTimeStart': pickupTimeStart.toIso8601String(),
+          'pickupTimeEnd': pickupTimeEnd.toIso8601String(),
+          'photoURL': photoURL,
+        },
+      );
+      final payload = response.data is Map<String, dynamic> ? response.data : <String, dynamic>{};
+      final basketJson = payload['basket'] is Map<String, dynamic>
+          ? payload['basket'] as Map<String, dynamic>
+          : payload;
+      return Basket.fromJson(basketJson);
+    } on DioException catch (e) {
+      print('DioError updating basket: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteBasket(String id) async {
+    try {
+      await _dio.delete('/baskets/$id');
+    } on DioException catch (e) {
+      print('DioError deleting basket: ${e.response?.data}');
+      rethrow;
+    }
+  }
+}
