@@ -5,6 +5,7 @@ import 'package:front/features/auth/screens/login_screen.dart';
 import 'package:front/features/auth/screens/register_screen.dart';
 import 'package:front/features/auth/screens/splash_screen.dart';
 import 'package:front/features/auth/screens/forgot_password_screen.dart';
+import 'package:front/features/auth/screens/onboarding_screen.dart';
 import 'package:front/features/home/screens/home_screen.dart'; // Keep for now, but will redirect for clients
 import 'package:front/features/profile/screens/profile_screen.dart';
 import 'package:front/features/merchant/screens/merchant_profile_screen.dart'; // Updated import
@@ -12,6 +13,8 @@ import 'package:front/features/merchant/screens/merchant_dashboard_screen.dart';
 import 'package:front/features/baskets/screens/basket_form_screen.dart'; // Updated import
 import 'package:front/features/baskets/screens/basket_list_screen.dart'; // Import new screen
 import 'package:front/features/baskets/screens/basket_details_screen.dart'; // Import new screen
+import 'package:front/features/baskets/screens/map_screen.dart';
+import 'package:front/features/merchant/screens/merchant_baskets_screen.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/features/orders/screens/order_confirmation_screen.dart';
 import 'package:front/features/orders/screens/payment_method_selection_screen.dart';
@@ -20,16 +23,36 @@ import 'package:front/features/orders/screens/merchant_sales_history_screen.dart
 import 'package:front/features/orders/screens/qr_scanner_screen.dart';
 import 'package:front/features/orders/screens/merchant_order_details_screen.dart';
 
+final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
+  final notifier = ValueNotifier<int>(0);
+  ref.listen<AuthState>(authStateProvider, (_, __) {
+    notifier.value++;
+  });
+  ref.onDispose(notifier.dispose);
+  return notifier;
+});
+
 final goRouterProvider = Provider<GoRouter>((ref) {
-  final authState = ref.watch(authStateProvider);
+  final refreshListenable = ref.watch(_routerRefreshProvider);
 
   return GoRouter(
     initialLocation: '/splash',
+    refreshListenable: refreshListenable,
     routes: <RouteBase>[
+      GoRoute(
+        path: '/',
+        redirect: (_, __) => '/home',
+      ),
       GoRoute(
         path: '/splash',
         builder: (BuildContext context, GoRouterState state) {
           return const SplashScreen();
+        },
+      ),
+      GoRoute(
+        path: '/onboarding',
+        builder: (BuildContext context, GoRouterState state) {
+          return const OnboardingScreen();
         },
       ),
       GoRoute(
@@ -69,9 +92,21 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         },
       ),
       GoRoute(
+        path: '/merchant-profile',
+        builder: (BuildContext context, GoRouterState state) {
+          return const MerchantProfileScreen();
+        },
+      ),
+      GoRoute(
         path: '/merchant-dashboard',
         builder: (BuildContext context, GoRouterState state) {
           return const MerchantDashboardScreen();
+        },
+      ),
+      GoRoute(
+        path: '/merchant-baskets',
+        builder: (BuildContext context, GoRouterState state) {
+          return const MerchantBasketsScreen();
         },
       ),
       GoRoute(
@@ -84,6 +119,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
         path: '/baskets',
         builder: (BuildContext context, GoRouterState state) {
           return const BasketListScreen();
+        },
+      ),
+      GoRoute(
+        path: '/map',
+        builder: (BuildContext context, GoRouterState state) {
+          return const MapScreen();
         },
       ),
       GoRoute(
@@ -151,62 +192,69 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       ),
     ],
     redirect: (BuildContext context, GoRouterState state) {
+      final authState = ref.read(authStateProvider);
       final bool isAuthenticated = authState.isAuthenticated;
       final user = authState.user;
+      final path = state.uri.path;
 
-      // List of routes that don't require authentication
-      final bool isUnauthenticatedRoute = ['/splash', '/login', '/register', '/forgot-password'].contains(state.uri.path);
+      const publicRoutes = {
+        '/splash',
+        '/onboarding',
+        '/login',
+        '/register',
+        '/forgot-password',
+      };
+      final isPublicRoute = publicRoutes.contains(path);
+      final isMerchantArea = path.startsWith('/merchant-') ||
+          path == '/merchant-dashboard' ||
+          path == '/merchant-baskets' ||
+          path == '/create-basket' ||
+          path.startsWith('/edit-basket/') ||
+          path == '/qr-scanner';
 
-      // If not authenticated and trying to access a protected route, redirect to login
-      if (!isAuthenticated && !isUnauthenticatedRoute) {
+      if (!isAuthenticated) {
+        if (!isPublicRoute) return '/login';
+        return null;
+      }
+
+      if (user == null) {
         return '/login';
       }
 
-      // If authenticated and trying to access an unauthenticated route, redirect to home
-      // This prevents users from staying on splash/login/register once logged in
-      if (isAuthenticated && isUnauthenticatedRoute) {
-        return '/home'; // This will then be handled below
+      if (isPublicRoute) {
+        return user.role == 'MERCHANT' ? '/merchant-dashboard' : '/baskets';
       }
 
-      // Special handling for merchants
-      if (isAuthenticated && user != null && user.role == 'MERCHANT') {
+      if (user.role == 'MERCHANT') {
         if (user.merchant == null) {
-          // No merchant profile yet: force registration.
-          if (state.uri.path != '/merchant-register' && state.uri.path != '/profile') {
+          if (path != '/merchant-register' && path != '/profile') {
             return '/merchant-register';
           }
         } else if (user.merchant!.status == 'APPROVED') {
-          // Allow approved merchants to access basket creation and editing
-          if (state.uri.path == '/create-basket' || state.uri.path.startsWith('/edit-basket/')) {
-            return null; // Allow navigation to these routes
-          }
-          // Redirect approved merchants to their dashboard if they are on home or client-facing routes
-          if (state.uri.path == '/home' || state.uri.path == '/' || state.uri.path == '/merchant-register') {
+          if (path == '/home' || path == '/merchant-register') {
             return '/merchant-dashboard';
           }
         } else {
-          // Merchant profile exists but is not approved (PENDING/REJECTED):
-          // never send back to registration form.
-          if (state.uri.path == '/merchant-register' || state.uri.path == '/home' || state.uri.path == '/') {
+          if (path == '/merchant-register' || path == '/home') {
             return '/merchant-dashboard';
           }
-          // Non-approved merchants cannot create or edit baskets yet.
-          if (state.uri.path == '/create-basket' || state.uri.path.startsWith('/edit-basket/')) {
+          if (path == '/create-basket' || path.startsWith('/edit-basket/')) {
             return '/merchant-dashboard';
           }
         }
+        return null;
       }
-      
-      // Special handling for clients (non-merchants)
-      if (isAuthenticated && user != null && user.role == 'CLIENT') {
-        // If client tries to go to /home or /, redirect to /baskets
-        if (state.uri.path == '/home' || state.uri.path == '/') {
+
+      // Client navigation guards.
+      if (user.role == 'CLIENT') {
+        if (path == '/home' || path == '/merchant-register') {
+          return '/baskets';
+        }
+        if (isMerchantArea) {
           return '/baskets';
         }
       }
 
-
-      // No redirection needed
       return null;
     },
   );

@@ -2,9 +2,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:qr_flutter/qr_flutter.dart';
 import 'package:front/features/orders/providers/order_providers.dart';
 import 'package:front/features/orders/models/order_model.dart';
-import 'package:qr_flutter/qr_flutter.dart'; // For QR code generation
+import 'package:front/core/theme/app_theme.dart';
+import 'package:front/core/widgets/bottom_nav.dart';
 
 class OrderConfirmationScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -42,9 +44,7 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -52,84 +52,168 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
   @override
   Widget build(BuildContext context) {
     if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: Text('Confirmation de Commande')),
+      return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_errorMessage != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Confirmation de Commande')),
-        body: Center(
-          child: Text(_errorMessage!),
-        ),
+        body: Center(child: Text(_errorMessage!)),
       );
     }
 
     if (_order == null) {
-      return Scaffold(
-        appBar: AppBar(title: Text('Confirmation de Commande')),
-        body: Center(
-          child: Text('Commande non trouvée.'),
-        ),
+      return const Scaffold(
+        body: Center(child: Text('Commande non trouvée.')),
       );
     }
 
-    final qrPayload = jsonEncode({'orderId': _order!.id, 'qrCode': _order!.qrCode});
+    final order = _order!;
+    final qrPayload = jsonEncode({'orderId': order.id, 'qrCode': order.qrCode});
+
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Confirmation de Commande'),
-        leading: IconButton(
-          icon: const Icon(Icons.home),
-          onPressed: () => context.go('/baskets'), // Go to client home after confirmation
-        ),
+      backgroundColor: AppTheme.background,
+      bottomNavigationBar: const BottomNav(
+        activeTab: 'orders',
+        role: 'CLIENT',
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              const Icon(Icons.check_circle_outline, color: Colors.green, size: 80),
-              const SizedBox(height: 20),
-              Text(
-                'Votre commande est confirmée!',
-                style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Montrez ce QR code au commerçant pour retirer votre panier.',
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 30),
-              // QR Code Display
-              QrImageView(
-                data: qrPayload,
-                version: QrVersions.auto,
-                size: 200.0,
-                backgroundColor: Colors.white,
-                gapless: false,
-              ),
-              const SizedBox(height: 30),
-              Text('ID Commande: ${_order!.id}'),
-              Text(_order!.basket?.title != null ? 'Panier: ${_order!.basket!.title}' : 'Panier: ${_order!.basketId}'),
-              Text('Prix payé: ${_order!.price}€'),
-              Text('Méthode de paiement: ${_order!.paymentMethod}'),
-              Text('Statut du paiement: ${_order!.paymentStatus}'),
-              Text('Statut de la commande: ${_order!.orderStatus}'),
-              const SizedBox(height: 20),
-              ElevatedButton(
-                onPressed: () => context.go('/baskets'),
-                child: const Text('Retour à la liste des paniers'),
-              ),
-            ],
-          ),
+      body: SafeArea(
+        child: Column(
+          children: [
+            const SizedBox(height: 8),
+            _successHeader(),
+            Expanded(child: _qrCard(qrPayload)),
+            _actions(context),
+          ],
         ),
       ),
     );
+  }
+
+  Widget _successHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 16),
+      child: Column(
+        children: [
+          Container(
+            width: 80,
+            height: 80,
+            decoration: const BoxDecoration(color: AppTheme.success, shape: BoxShape.circle),
+            child: const Icon(Icons.check_circle, size: 48, color: Colors.white),
+          ),
+          const SizedBox(height: 12),
+          Text('Paiement confirmé 🎉', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 8),
+          Text(
+            'Présentez ce QR code au commerçant lors du retrait',
+            textAlign: TextAlign.center,
+            style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _qrCard(String payload) {
+    final order = _order!;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Container(
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: const [
+            BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, 6)),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+              ),
+              child: QrImageView(
+                data: payload,
+                version: QrVersions.auto,
+                size: 220,
+                backgroundColor: Colors.white,
+                gapless: false,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Text(order.basket?.title ?? 'Panier', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 4),
+            Text(
+              order.merchant?.businessName ?? 'Commerce',
+              style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppTheme.background,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                _pickupText(),
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _actions(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+      child: Column(
+        children: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: () {},
+              icon: const Icon(Icons.navigation),
+              label: const Text("Ouvrir l'itinéraire"),
+              style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
+            ),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () => context.go('/baskets'),
+              icon: const Icon(Icons.home, color: AppTheme.primary),
+              label: const Text('Retour à l\'accueil'),
+              style: OutlinedButton.styleFrom(
+                shape: const StadiumBorder(),
+                side: const BorderSide(color: AppTheme.primary),
+                foregroundColor: AppTheme.primary,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _pickupText() {
+    final order = _order!;
+    final start = order.basket?.pickupTimeStart;
+    final end = order.basket?.pickupTimeEnd;
+    if (start == null || end == null) return 'Retrait: —';
+    return 'Retrait: ${_time(start)} - ${_time(end)}';
+  }
+
+  String _time(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 }

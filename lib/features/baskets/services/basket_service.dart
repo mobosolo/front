@@ -10,7 +10,7 @@ class BasketService {
   Future<void> createBasket({
     required String title,
     String? description,
-    String? category,
+    required String category,
     required int originalPrice,
     required int discountedPrice,
     required int quantity,
@@ -19,19 +19,25 @@ class BasketService {
     String? photoURL,
   }) async {
     try {
+      final data = <String, dynamic>{
+        'title': title,
+        'category': category,
+        'originalPrice': originalPrice,
+        'discountedPrice': discountedPrice,
+        'quantity': quantity,
+        'pickupTimeStart': pickupTimeStart.toIso8601String(),
+        'pickupTimeEnd': pickupTimeEnd.toIso8601String(),
+      };
+      if (description != null && description.trim().isNotEmpty) {
+        data['description'] = description.trim();
+      }
+      if (photoURL != null && photoURL.trim().isNotEmpty) {
+        data['photoURL'] = photoURL.trim();
+      }
+
       final response = await _dio.post(
         '/baskets',
-        data: {
-          'title': title,
-          'description': description,
-          'category': category,
-          'originalPrice': originalPrice,
-          'discountedPrice': discountedPrice,
-          'quantity': quantity,
-          'pickupTimeStart': pickupTimeStart.toIso8601String(),
-          'pickupTimeEnd': pickupTimeEnd.toIso8601String(),
-          'photoURL': photoURL,
-        },
+        data: data,
       );
       // Backend returns a partial basket object on create; no parsing needed here.
       if (response.statusCode != 201) {
@@ -82,7 +88,7 @@ class BasketService {
     String id, {
     required String title,
     String? description,
-    String? category,
+    required String category,
     required int originalPrice,
     required int discountedPrice,
     required int quantity,
@@ -91,19 +97,25 @@ class BasketService {
     String? photoURL,
   }) async {
     try {
+      final data = <String, dynamic>{
+        'title': title,
+        'category': category,
+        'originalPrice': originalPrice,
+        'discountedPrice': discountedPrice,
+        'quantity': quantity,
+        'pickupTimeStart': pickupTimeStart.toIso8601String(),
+        'pickupTimeEnd': pickupTimeEnd.toIso8601String(),
+      };
+      if (description != null && description.trim().isNotEmpty) {
+        data['description'] = description.trim();
+      }
+      if (photoURL != null && photoURL.trim().isNotEmpty) {
+        data['photoURL'] = photoURL.trim();
+      }
+
       final response = await _dio.put(
         '/baskets/$id',
-        data: {
-          'title': title,
-          'description': description,
-          'category': category,
-          'originalPrice': originalPrice,
-          'discountedPrice': discountedPrice,
-          'quantity': quantity,
-          'pickupTimeStart': pickupTimeStart.toIso8601String(),
-          'pickupTimeEnd': pickupTimeEnd.toIso8601String(),
-          'photoURL': photoURL,
-        },
+        data: data,
       );
       final payload = response.data is Map<String, dynamic> ? response.data : <String, dynamic>{};
       final basketJson = payload['basket'] is Map<String, dynamic>

@@ -25,8 +25,8 @@ class AuthService {
         'displayName': name,
         'email': email,
         'password': password,
-        'phoneNumber': phone,
         'role': role,
+        if (phone.trim().isNotEmpty) 'phoneNumber': phone.trim(),
       });
       return response.data;
     } on DioException catch (e) {

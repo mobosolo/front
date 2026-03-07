@@ -20,12 +20,12 @@ class MerchantService {
         '/merchants/register',
         data: {
           'businessName': businessName,
-          'type': type,
-          'address': address,
-          'latitude': latitude,
-          'longitude': longitude,
-          'phoneNumber': phoneNumber,
-          'photoURL': photoURL,
+          if (type != null && type.trim().isNotEmpty) 'type': type.trim(),
+          if (address != null && address.trim().isNotEmpty) 'address': address.trim(),
+          if (latitude != null) 'latitude': latitude,
+          if (longitude != null) 'longitude': longitude,
+          if (phoneNumber != null && phoneNumber.trim().isNotEmpty) 'phoneNumber': phoneNumber.trim(),
+          if (photoURL != null && photoURL.trim().isNotEmpty) 'photoURL': photoURL.trim(),
         },
       );
       // Register response may only include id/status; no parsing needed here.
@@ -62,13 +62,13 @@ class MerchantService {
       final response = await _dio.put(
         '/merchants/$merchantId',
         data: {
-          'businessName': businessName,
-          'type': type,
-          'address': address,
-          'latitude': latitude,
-          'longitude': longitude,
-          'phoneNumber': phoneNumber,
-          'photoURL': photoURL,
+          if (businessName != null && businessName.trim().isNotEmpty) 'businessName': businessName.trim(),
+          if (type != null && type.trim().isNotEmpty) 'type': type.trim(),
+          if (address != null && address.trim().isNotEmpty) 'address': address.trim(),
+          if (latitude != null) 'latitude': latitude,
+          if (longitude != null) 'longitude': longitude,
+          if (phoneNumber != null && phoneNumber.trim().isNotEmpty) 'phoneNumber': phoneNumber.trim(),
+          if (photoURL != null && photoURL.trim().isNotEmpty) 'photoURL': photoURL.trim(),
         },
       );
       return Merchant.fromJson(response.data);

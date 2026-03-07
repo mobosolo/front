@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:dio/dio.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/core/providers/storage_providers.dart';
+import 'package:front/core/theme/app_theme.dart';
 
 enum UserRole { client, merchant }
 
@@ -22,6 +24,23 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   UserRole _selectedRole = UserRole.client;
   bool _isLoading = false;
 
+  String _extractErrorMessage(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        final msg = data['message'];
+        if (msg is String && msg.trim().isNotEmpty) return msg;
+        final errors = data['errors'];
+        if (errors is List && errors.isNotEmpty && errors.first is Map<String, dynamic>) {
+          final first = errors.first as Map<String, dynamic>;
+          final fieldMsg = first['msg'];
+          if (fieldMsg is String && fieldMsg.trim().isNotEmpty) return fieldMsg;
+        }
+      }
+    }
+    return "Erreur d'inscription. Vérifiez les champs.";
+  }
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -40,10 +59,9 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final authNotifier = ref.read(authStateProvider.notifier);
       final tokenStorageService = ref.read(tokenStorageServiceProvider);
       final authService = ref.read(authServiceProvider);
-      
+
       final roleString = _selectedRole == UserRole.client ? 'CLIENT' : 'MERCHANT';
 
-      // Assuming the register endpoint also returns a token
       final result = await authService.register(
         _nameController.text,
         _emailController.text,
@@ -55,7 +73,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       final token = result['token'];
       if (token != null) {
         await tokenStorageService.saveToken(token);
-        await authNotifier.loadUser(); // This will update the state
+        await authNotifier.loadUser();
+        final isAuthenticated = ref.read(authStateProvider).isAuthenticated;
+        if (!isAuthenticated) {
+          throw Exception("Session invalide. Veuillez réessayer.");
+        }
 
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('Inscription réussie!')),
@@ -64,11 +86,10 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
       } else {
         throw Exception('Token not found in registration response');
       }
-
     } catch (e) {
-      if (mounted) { // Add mounted check
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Erreur d'inscription: ${e.toString()}")),
+          SnackBar(content: Text(_extractErrorMessage(e))),
         );
       }
     } finally {
@@ -80,108 +101,127 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-
     return Scaffold(
       appBar: AppBar(
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
-          onPressed: () => context.pop(),
+          onPressed: () {
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/login');
+            }
+          },
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           children: [
-            const SizedBox(height: 20),
-            Text(
-              'Créer un compte',
-              style: theme.textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold),
-            ),
             const SizedBox(height: 8),
             Text(
-              'Rejoignez MealFlavor aujourd\'hui',
-              style: theme.textTheme.titleMedium?.copyWith(color: Colors.grey[600]),
+              'Créer un compte',
+              style: Theme.of(context).textTheme.headlineLarge,
             ),
-            const SizedBox(height: 32),
+            const SizedBox(height: 6),
+            Text(
+              "Rejoignez SauvePanier aujourd'hui",
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
             Form(
               key: _formKey,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Form Fields
-                  _buildTextFormField(controller: _nameController, label: 'Nom complet', icon: Icons.person_outline, validator: (val) => val!.isEmpty ? 'Nom requis' : null),
+                  const Text('Nom complet', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _nameController,
+                    decoration: const InputDecoration(
+                      hintText: 'Votre nom',
+                      prefixIcon: Icon(Icons.person_outline),
+                    ),
+                    validator: (val) => val == null || val.isEmpty ? 'Nom requis' : null,
+                  ),
                   const SizedBox(height: 16),
-                  _buildTextFormField(controller: _emailController, label: 'Email', icon: Icons.mail_outline, keyboardType: TextInputType.emailAddress, validator: (val) => val!.isEmpty || !val.contains('@') ? 'Email invalide' : null),
+                  const Text('Email', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(
+                      hintText: 'votre@email.com',
+                      prefixIcon: Icon(Icons.mail_outline),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (val) => val == null || !val.contains('@') ? 'Email invalide' : null,
+                  ),
                   const SizedBox(height: 16),
-                  _buildTextFormField(controller: _passwordController, label: 'Mot de passe', icon: Icons.lock_outline, obscureText: true, validator: (val) => val!.length < 6 ? '6 caractères minimum' : null),
+                  const Text('Mot de passe', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: const InputDecoration(
+                      hintText: '••••••••',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    obscureText: true,
+                    validator: (val) => val != null && val.length >= 6 ? null : '6 caractères minimum',
+                  ),
                   const SizedBox(height: 16),
-                  _buildTextFormField(controller: _phoneController, label: 'Téléphone', icon: Icons.phone_outlined, keyboardType: TextInputType.phone),
-                  
-                  const SizedBox(height: 24),
-                  
-                  // Role Selector
-                  Text('Je suis...', style: theme.textTheme.titleMedium),
+                  const Text('Téléphone (optionnel)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _phoneController,
+                    decoration: const InputDecoration(
+                      hintText: '+228 90 12 34 56',
+                      prefixIcon: Icon(Icons.phone_outlined),
+                    ),
+                    keyboardType: TextInputType.phone,
+                  ),
+                  const SizedBox(height: 20),
+                  const Text('Je suis...', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   Row(
                     children: [
-                      _buildRoleButton(context, 'Client', UserRole.client),
-                      const SizedBox(width: 16),
-                      _buildRoleButton(context, 'Commerçant', UserRole.merchant),
+                      Expanded(child: _roleButton('Client', UserRole.client)),
+                      const SizedBox(width: 12),
+                      Expanded(child: _roleButton('Commerçant', UserRole.merchant)),
                     ],
                   ),
-
-                  const SizedBox(height: 32),
-
-                  // Submit Button
+                  const SizedBox(height: 24),
                   _isLoading
                       ? const Center(child: CircularProgressIndicator())
                       : ElevatedButton(
                           onPressed: _register,
                           style: ElevatedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(vertical: 16),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                            shape: const StadiumBorder(),
                           ),
                           child: const Text('Créer mon compte'),
                         ),
                 ],
               ),
             ),
+            const SizedBox(height: 24),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildTextFormField({required TextEditingController controller, required String label, required IconData icon, bool obscureText = false, TextInputType? keyboardType, String? Function(String?)? validator}) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: Icon(icon),
-        border: const OutlineInputBorder(),
-      ),
-      obscureText: obscureText,
-      keyboardType: keyboardType,
-      validator: validator,
-    );
-  }
-
-  Widget _buildRoleButton(BuildContext context, String title, UserRole role) {
+  Widget _roleButton(String label, UserRole role) {
     final isSelected = _selectedRole == role;
-    final theme = Theme.of(context);
-    
-    return Expanded(
-      child: OutlinedButton(
-        onPressed: () => setState(() => _selectedRole = role),
-        style: OutlinedButton.styleFrom(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          backgroundColor: isSelected ? theme.colorScheme.primary.withOpacity(0.1) : null,
-          side: BorderSide(color: isSelected ? theme.colorScheme.primary : Colors.grey[400]!),
-        ),
-        child: Text(title, style: TextStyle(color: isSelected ? theme.colorScheme.primary : theme.textTheme.bodyLarge?.color)),
+    return OutlinedButton(
+      onPressed: () => setState(() => _selectedRole = role),
+      style: OutlinedButton.styleFrom(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        backgroundColor: isSelected ? AppTheme.primary.withOpacity(0.08) : Colors.white,
+        side: BorderSide(color: isSelected ? AppTheme.primary : Colors.grey[300]!),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: isSelected ? AppTheme.primary : AppTheme.foreground),
       ),
     );
   }

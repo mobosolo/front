@@ -3,8 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/features/baskets/providers/basket_providers.dart';
 import 'package:front/features/baskets/models/basket_model.dart';
-import 'package:front/features/auth/providers/auth_providers.dart'; // Import for authStateProvider
-import 'package:front/features/orders/providers/order_providers.dart'; // Import OrderService provider
+import 'package:front/features/auth/providers/auth_providers.dart';
+import 'package:front/core/theme/app_theme.dart';
 
 class BasketDetailsScreen extends ConsumerStatefulWidget {
   final String basketId;
@@ -42,9 +42,7 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
       }
     } finally {
       if (mounted) {
-        setState(() {
-          _isLoading = false;
-        });
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -54,11 +52,11 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
     context.push('/select-payment-method', extra: {'basketId': _basket!.id, 'price': _basket!.discountedPrice});
   }
 
-  void _editBasket(BuildContext context, String basketId) {
+  void _editBasket(String basketId) {
     context.push('/edit-basket/$basketId');
   }
 
-  Future<void> _deleteBasket(BuildContext context, String basketId) async {
+  Future<void> _deleteBasket(String basketId) async {
     final bool? confirm = await showDialog<bool>(
       context: context,
       builder: (BuildContext context) {
@@ -86,7 +84,7 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Panier supprimé avec succès!')),
           );
-          context.go('/merchant-dashboard'); // Go back to dashboard after deletion
+          context.go('/merchant-dashboard');
         }
       } catch (e) {
         if (mounted) {
@@ -106,120 +104,246 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
     final bool isOwner = isMerchant && currentUser?.merchant?.id == _basket?.merchantId;
 
     if (_isLoading) {
-      return Scaffold(
-        appBar: AppBar(title: Text('Détails du Panier')),
+      return const Scaffold(
         body: Center(child: CircularProgressIndicator()),
       );
     }
 
     if (_errorMessage != null) {
       return Scaffold(
-        appBar: AppBar(title: const Text('Détails du Panier')),
-        body: Center(
-          child: Text(_errorMessage!),
-        ),
+        body: Center(child: Text(_errorMessage!)),
       );
     }
 
     if (_basket == null) {
-      return Scaffold(
-        appBar: AppBar(title: Text('Détails du Panier')),
-        body: Center(
-          child: Text('Panier non trouvé.'),
-        ),
+      return const Scaffold(
+        body: Center(child: Text('Panier non trouvé.')),
       );
     }
 
+    final basket = _basket!;
+    final savings = basket.originalPrice > 0
+        ? (((basket.originalPrice - basket.discountedPrice) / basket.originalPrice) * 100).round()
+        : 0;
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text(_basket!.title),
-        actions: isOwner
-            ? [
-                IconButton(icon: const Icon(Icons.edit), onPressed: () => _editBasket(context, _basket!.id)),
-                IconButton(icon: const Icon(Icons.delete), onPressed: () => _deleteBasket(context, _basket!.id)),
-              ]
-            : null,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16.0),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+      backgroundColor: AppTheme.background,
+      body: SizedBox.expand(
+        child: Stack(
           children: [
-            if (_basket!.photoURL != null)
-              ClipRRect(
-                borderRadius: BorderRadius.circular(8.0),
-                child: Image.network(
-                  _basket!.photoURL!,
-                  height: 200,
-                  width: double.infinity,
-                  fit: BoxFit.cover,
+            _headerImage(basket),
+          Positioned(
+            top: 40,
+            left: 16,
+            child: _circleButton(
+              icon: Icons.arrow_back,
+              onTap: () => context.pop(),
+            ),
+          ),
+          Positioned(
+            top: 40,
+            right: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(999),
+                boxShadow: const [
+                  BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 4)),
+                ],
+              ),
+              child: Text(
+                '-$savings%',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            top: 220,
+            child: Container(
+              decoration: const BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(basket.title, style: Theme.of(context).textTheme.headlineMedium),
+                        ),
+                        if (isOwner) ...[
+                          IconButton(
+                            onPressed: () => _editBasket(basket.id),
+                            icon: const Icon(Icons.edit, color: AppTheme.primary),
+                          ),
+                          IconButton(
+                            onPressed: () => _deleteBasket(basket.id),
+                            icon: const Icon(Icons.delete, color: AppTheme.destructive),
+                          ),
+                        ],
+                      ],
+                    ),
+                    if (basket.merchant?.businessName != null)
+                      Text(
+                        basket.merchant!.businessName!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+                      ),
+                    const SizedBox(height: 20),
+                    _sectionTitle('Description'),
+                    Text(
+                      basket.description ?? 'Aucune description',
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+                    ),
+                    const SizedBox(height: 20),
+                    _infoCard(
+                      icon: Icons.schedule,
+                      title: 'Horaire de retrait',
+                      body: '${_time(basket.pickupTimeStart)} - ${_time(basket.pickupTimeEnd)}',
+                    ),
+                    const SizedBox(height: 12),
+                    if (basket.merchant?.address != null)
+                      _infoCard(
+                        icon: Icons.location_on_outlined,
+                        title: 'Adresse',
+                        body: basket.merchant!.address!,
+                      ),
+                    const SizedBox(height: 20),
+                    const Divider(),
+                    const SizedBox(height: 12),
+                    _priceRow('Prix original', '${basket.originalPrice} F', muted: true, strike: true),
+                    _priceRow('Économie', '-${basket.originalPrice - basket.discountedPrice} F ($savings%)',
+                        color: AppTheme.success),
+                    _priceRow('Prix final', '${basket.discountedPrice} F',
+                        color: AppTheme.primary, bold: true, large: true),
+                    const SizedBox(height: 24),
+                    if (!isMerchant || !isOwner) ...[
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton(
+                          onPressed: _reserveBasket,
+                          style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
+                          child: const Text('Réserver maintenant'),
+                        ),
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: () {},
+                          style: OutlinedButton.styleFrom(
+                            shape: const StadiumBorder(),
+                            side: const BorderSide(color: AppTheme.primary),
+                          ),
+                          child: const Text('Voir le commerce'),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 24),
+                  ],
                 ),
               ),
-            const SizedBox(height: 16),
-            Text(
-              _basket!.title,
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 8),
-            Text(
-              _basket!.description ?? 'Aucune description',
-              style: Theme.of(context).textTheme.bodyLarge,
-            ),
-            const SizedBox(height: 16),
-            _buildDetailRow(context, Icons.category, 'Catégorie', _basket!.category ?? 'N/A'),
-            if (_basket!.merchant?.businessName != null)
-              _buildDetailRow(context, Icons.store, 'Commerçant', _basket!.merchant!.businessName!),
-            if (_basket!.merchant?.address != null)
-              _buildDetailRow(context, Icons.place, 'Adresse', _basket!.merchant!.address!),
-            _buildDetailRow(context, Icons.money_off, 'Prix original', '${_basket!.originalPrice}€'),
-            _buildDetailRow(context, Icons.price_change, 'Prix réduit', '${_basket!.discountedPrice}€', boldValue: true),
-            _buildDetailRow(context, Icons.numbers, 'Quantité disponible', '${_basket!.availableQuantity} / ${_basket!.quantity}'),
-            _buildDetailRow(context, Icons.access_time, 'Début de retrait', _basket!.pickupTimeStart.toLocalFormattedString()),
-            _buildDetailRow(context, Icons.access_time_filled, 'Fin de retrait', _basket!.pickupTimeEnd.toLocalFormattedString()),
-            _buildDetailRow(context, Icons.info, 'Statut', _basket!.status),
-            const SizedBox(height: 24),
-            if (!isMerchant || !isOwner) // Only show reserve button for clients or non-owners
-              Center(
-                child: ElevatedButton(
-                  onPressed: _reserveBasket,
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 15),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
-                  ),
-                  child: const Text('Réserver ce panier'),
-                ),
-              ),
+          ),
           ],
         ),
       ),
     );
   }
 
-  Widget _buildDetailRow(BuildContext context, IconData icon, String label, String value, {bool boldValue = false}) {
+  Widget _headerImage(Basket basket) {
+    if (basket.photoURL == null || basket.photoURL!.isEmpty) {
+      return Container(
+        height: 260,
+        width: double.infinity,
+        color: AppTheme.background,
+        child: const Icon(Icons.shopping_basket, size: 64, color: AppTheme.mutedForeground),
+      );
+    }
+    return Image.network(
+      basket.photoURL!,
+      height: 260,
+      width: double.infinity,
+      fit: BoxFit.cover,
+    );
+  }
+
+  Widget _circleButton({required IconData icon, required VoidCallback onTap}) {
+    return Material(
+      color: Colors.white,
+      shape: const CircleBorder(),
+      elevation: 4,
+      child: InkWell(
+        customBorder: const CircleBorder(),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10.0),
+          child: Icon(icon, size: 20, color: AppTheme.foreground),
+        ),
+      ),
+    );
+  }
+
+  Widget _sectionTitle(String title) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      padding: const EdgeInsets.only(bottom: 8.0),
+      child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+    );
+  }
+
+  Widget _infoCard({required IconData icon, required String title, required String body}) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AppTheme.background,
+        borderRadius: BorderRadius.circular(16),
+      ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(icon, size: 20, color: Theme.of(context).colorScheme.primary),
+          Icon(icon, size: 20, color: AppTheme.primary),
           const SizedBox(width: 8),
-          Text('$label: ', style: Theme.of(context).textTheme.bodyMedium),
           Expanded(
-            child: Text(
-              value,
-              style: boldValue
-                  ? Theme.of(context).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.bold)
-                  : Theme.of(context).textTheme.bodyMedium,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 6),
+                Text(body, style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
+              ],
             ),
           ),
         ],
       ),
     );
   }
-}
 
-extension on DateTime {
-  String toLocalFormattedString() {
-    return '${day.toString().padLeft(2, '0')}/${month.toString().padLeft(2, '0')}/${year} ${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+  Widget _priceRow(String label, String value,
+      {bool muted = false, bool strike = false, bool bold = false, bool large = false, Color? color}) {
+    final style = Theme.of(context).textTheme.bodyMedium?.copyWith(
+          color: color ?? (muted ? AppTheme.mutedForeground : AppTheme.foreground),
+          decoration: strike ? TextDecoration.lineThrough : null,
+          fontWeight: bold ? FontWeight.w600 : FontWeight.w400,
+          fontSize: large ? 18 : null,
+        );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4.0),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: style),
+          Text(value, style: style),
+        ],
+      ),
+    );
+  }
+
+  String _time(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m';
   }
 }

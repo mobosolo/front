@@ -37,10 +37,15 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   AuthStateNotifier(this._authService, this._merchantService, this._notificationService) : super(AuthState());
 
   Future<void> _handlePostAuthActions() async {
-    await _notificationService.initialize();
-    final fcmToken = await _notificationService.getFCMToken();
-    if (fcmToken != null) {
-      await _authService.sendFCMToken(fcmToken);
+    // Post-auth side effects must never break login/register flow.
+    try {
+      await _notificationService.initialize();
+      final fcmToken = await _notificationService.getFCMToken();
+      if (fcmToken != null) {
+        await _authService.sendFCMToken(fcmToken);
+      }
+    } catch (e) {
+      print('Post-auth notification setup failed: $e');
     }
   }
 

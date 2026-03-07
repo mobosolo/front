@@ -8,21 +8,24 @@ class UploadService {
 
   Future<String> uploadImage(XFile imageFile) async {
     try {
-      String fileName = imageFile.path.split('/').last;
+      final String fileName = imageFile.name.isNotEmpty
+          ? imageFile.name
+          : imageFile.path.split(RegExp(r'[\\/]')).last;
+      final bytes = await imageFile.readAsBytes();
+
       FormData formData = FormData.fromMap({
-        "file": await MultipartFile.fromFile(imageFile.path, filename: fileName),
+        'file': MultipartFile.fromBytes(bytes, filename: fileName),
       });
 
       final response = await _dio.post(
         '/upload',
         data: formData,
-        options: Options(
-          headers: {
-            'Content-Type': 'multipart/form-data',
-          },
-        ),
       );
-      return response.data['url'];
+      final data = response.data;
+      if (data is Map<String, dynamic> && data['url'] is String) {
+        return data['url'] as String;
+      }
+      throw Exception("Reponse d'upload invalide: url absente.");
     } on DioException catch (e) {
       print('DioError uploading image: ${e.response?.data}');
       rethrow;

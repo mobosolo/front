@@ -1,146 +1,217 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:go_router/go_router.dart';
+import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/core/providers/storage_providers.dart';
+import 'package:front/core/theme/app_theme.dart';
+import 'package:front/core/widgets/bottom_nav.dart';
 
-class ProfileScreen extends ConsumerStatefulWidget {
+class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
 
   @override
-  ConsumerState<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends ConsumerState<ProfileScreen> {
-  final _formKey = GlobalKey<FormState>();
-  late TextEditingController _displayNameController;
-  late TextEditingController _phoneNumberController;
-  bool _isLoading = false;
-
-  @override
-  void initState() {
-    super.initState();
-    final user = ref.read(authStateProvider).user;
-    _displayNameController = TextEditingController(text: user?.displayName);
-    _phoneNumberController = TextEditingController(text: user?.phoneNumber);
-  }
-
-  @override
-  void dispose() {
-    _displayNameController.dispose();
-    _phoneNumberController.dispose();
-    super.dispose();
-  }
-
-  Future<void> _updateProfile() async {
-    if (!_formKey.currentState!.validate()) return;
-
-    setState(() => _isLoading = true);
-
-    try {
-      final authService = ref.read(authServiceProvider);
-      final authNotifier = ref.read(authStateProvider.notifier);
-
-      await authService.updateProfile(
-        displayName: _displayNameController.text,
-        phoneNumber: _phoneNumberController.text,
-      );
-      await authNotifier.loadUser(); // Refresh user data in state
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Profil mis à jour avec succès!')),
-      );
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur de mise à jour: ${e.toString()}')),
-      );
-    } finally {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final authState = ref.watch(authStateProvider);
-    final user = authState.user;
+  Widget build(BuildContext context, WidgetRef ref) {
+    final user = ref.watch(authStateProvider).user;
 
     if (user == null) {
       return const Scaffold(
-        body: Center(
-          child: Text('Utilisateur non connecté'),
-        ),
+        body: Center(child: Text('Utilisateur non connecté')),
       );
     }
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Profil'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await ref.read(tokenStorageServiceProvider).deleteToken();
-              ref.read(authStateProvider.notifier).logout();
-              context.go('/login');
-            },
-          )
+      backgroundColor: AppTheme.background,
+      bottomNavigationBar: const BottomNav(activeTab: 'profile', role: 'CLIENT'),
+      body: SafeArea(
+        child: ListView(
+          children: [
+            _header(context, user.displayName ?? 'Utilisateur'),
+            const SizedBox(height: 8),
+            _contactInfo(context, user.email, user.phoneNumber),
+            const SizedBox(height: 8),
+            _menuItems(context),
+            const SizedBox(height: 12),
+            _switchRole(context),
+            const SizedBox(height: 8),
+            _logout(context, ref),
+            const SizedBox(height: 24),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _header(BuildContext context, String name) {
+    return Container(
+      color: Colors.white,
+      padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Profil', style: Theme.of(context).textTheme.headlineMedium),
+          const SizedBox(height: 16),
+          Container(
+            decoration: BoxDecoration(
+              gradient: const LinearGradient(
+                colors: [AppTheme.primary, Color(0xCC1E7F5C)],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  width: 56,
+                  height: 56,
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Icon(Icons.person, color: Colors.white, size: 28),
+                ),
+                const SizedBox(height: 12),
+                Text(name, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                const Text('Client SauvePanier', style: TextStyle(color: Colors.white70)),
+              ],
+            ),
+          ),
         ],
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Form(
-          key: _formKey,
-          child: Column(
+    );
+  }
+
+  Widget _contactInfo(BuildContext context, String email, String? phone) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Informations de contact', style: Theme.of(context).textTheme.titleMedium),
+          const SizedBox(height: 8),
+          Container(
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: const [
+                BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 4)),
+              ],
+            ),
+            child: Column(
+              children: [
+                _infoRow(Icons.mail_outline, 'Email', email, hasBorder: phone != null && phone.isNotEmpty),
+                if (phone != null && phone.isNotEmpty)
+                  _infoRow(Icons.phone_outlined, 'Téléphone', phone),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _infoRow(IconData icon, String label, String value, {bool hasBorder = false}) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: hasBorder ? const Border(bottom: BorderSide(color: AppTheme.border)) : null,
+      ),
+      child: Row(
+        children: [
+          Icon(icon, color: AppTheme.mutedForeground),
+          const SizedBox(width: 12),
+          Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Email: ${user.email}', style: Theme.of(context).textTheme.titleMedium),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _displayNameController,
-                decoration: const InputDecoration(
-                  labelText: 'Nom affiché',
-                  border: OutlineInputBorder(),
-                ),
-                validator: (value) {
-                  if (value == null || value.isEmpty) {
-                    return 'Le nom affiché ne peut pas être vide';
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _phoneNumberController,
-                decoration: const InputDecoration(
-                  labelText: 'Numéro de téléphone',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 32),
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ElevatedButton(
-                      onPressed: _updateProfile,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        minimumSize: const Size.fromHeight(50), // Make button full width
-                      ),
-                      child: const Text('Enregistrer les modifications'),
-                    ),
-              const SizedBox(height: 20),
-              if (user.role == 'CLIENT')
-                ElevatedButton(
-                  onPressed: () => context.push('/client-orders'),
-                  style: ElevatedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    minimumSize: const Size.fromHeight(50),
-                  ),
-                  child: const Text('Voir mes commandes'),
-                ),
+              Text(label, style: const TextStyle(fontSize: 12, color: AppTheme.mutedForeground)),
+              Text(value),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _menuItems(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 4)),
+          ],
+        ),
+        child: Column(
+          children: [
+            _menuRow(Icons.shopping_bag_outlined, 'Mes commandes', () => context.push('/client-orders'), hasBorder: true),
+            _menuRow(Icons.settings_outlined, 'Paramètres', () {}),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _menuRow(IconData icon, String label, VoidCallback onTap, {bool hasBorder = false}) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          border: hasBorder ? const Border(bottom: BorderSide(color: AppTheme.border)) : null,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: AppTheme.mutedForeground),
+            const SizedBox(width: 12),
+            Expanded(child: Text(label)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _switchRole(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton(
+          onPressed: () {},
+          style: OutlinedButton.styleFrom(
+            backgroundColor: AppTheme.secondary.withOpacity(0.08),
+            foregroundColor: AppTheme.secondary,
+            side: BorderSide.none,
+            shape: const StadiumBorder(),
+            padding: const EdgeInsets.symmetric(vertical: 14),
+          ),
+          child: const Text('Passer en mode commerçant'),
+        ),
+      ),
+    );
+  }
+
+  Widget _logout(BuildContext context, WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: SizedBox(
+        width: double.infinity,
+        child: OutlinedButton.icon(
+          onPressed: () async {
+            await ref.read(tokenStorageServiceProvider).deleteToken();
+            ref.read(authStateProvider.notifier).logout();
+            context.go('/login');
+          },
+          icon: const Icon(Icons.logout, color: AppTheme.destructive),
+          label: const Text('Déconnexion', style: TextStyle(color: AppTheme.destructive)),
+          style: OutlinedButton.styleFrom(
+            side: BorderSide.none,
+            shape: const StadiumBorder(),
+            padding: const EdgeInsets.symmetric(vertical: 14),
           ),
         ),
       ),

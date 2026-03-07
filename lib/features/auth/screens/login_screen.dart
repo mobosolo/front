@@ -34,17 +34,20 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         final tokenStorageService = ref.read(tokenStorageServiceProvider);
         final authService = ref.read(authServiceProvider);
 
-        // We still need to call the service directly to get the token
         final result = await authService.login(
           _emailController.text,
           _passwordController.text,
         );
-        
+
         final token = result['token'];
         if (token != null) {
           await tokenStorageService.saveToken(token);
-          await authNotifier.loadUser(); // This will update the state
-          
+          await authNotifier.loadUser();
+          final isAuthenticated = ref.read(authStateProvider).isAuthenticated;
+          if (!isAuthenticated) {
+            throw Exception('Session invalide. Veuillez réessayer.');
+          }
+
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Connexion réussie!')),
           );
@@ -52,9 +55,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         } else {
           throw Exception('Token not found in response');
         }
-
       } catch (e) {
-        if (mounted) { // Add mounted check
+        if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Erreur de connexion: ${e.toString()}')),
           );
@@ -76,99 +78,102 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         leading: IconButton(
           icon: const Icon(Icons.arrow_back),
           onPressed: () {
-            if (context.canPop()) context.pop();
+            if (context.canPop()) {
+              context.pop();
+            } else {
+              context.go('/onboarding');
+            }
           },
         ),
-        backgroundColor: Colors.transparent,
-        elevation: 0,
       ),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.symmetric(horizontal: 24.0),
           children: [
-              const SizedBox(height: 20),
-              Text(
-                'Connexion',
-                style: Theme.of(context).textTheme.headlineLarge?.copyWith(fontWeight: FontWeight.bold),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Accédez à votre compte MealFlavor',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(color: Colors.grey[600]),
-              ),
-              const SizedBox(height: 32),
-              Form(
-                key: _formKey,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    TextFormField(
-                      controller: _emailController,
-                      decoration: const InputDecoration(
-                        labelText: 'Email',
-                        prefixIcon: Icon(Icons.mail_outline),
-                        border: OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.emailAddress,
-                      validator: (value) {
-                        if (value == null || value.isEmpty || !value.contains('@')) {
-                          return 'Veuillez entrer un email valide';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    TextFormField(
-                      controller: _passwordController,
-                      decoration: const InputDecoration(
-                        labelText: 'Mot de passe',
-                        prefixIcon: Icon(Icons.lock_outline),
-                        border: OutlineInputBorder(),
-                      ),
-                      obscureText: true,
-                      validator: (value) {
-                        if (value == null || value.isEmpty) {
-                          return 'Veuillez entrer votre mot de passe';
-                        }
-                        return null;
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: TextButton(
-                        onPressed: () => context.push('/forgot-password'),
-                        child: const Text('Mot de passe oublié ?'),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-                    _isLoading
-                        ? const Center(child: CircularProgressIndicator())
-                        : ElevatedButton(
-                            onPressed: _login,
-                            style: ElevatedButton.styleFrom(
-                              padding: const EdgeInsets.symmetric(vertical: 16),
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(30),
-                              ),
-                            ),
-                            child: const Text('Connexion'),
-                          ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+            const SizedBox(height: 8),
+            Text(
+              'Connexion',
+              style: Theme.of(context).textTheme.headlineLarge,
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Accédez à votre compte SauvePanier',
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
+            ),
+            const SizedBox(height: 24),
+            Form(
+              key: _formKey,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  const Text('Pas encore de compte ?'),
-                  TextButton(
-                    onPressed: () => context.push('/register'),
-                    child: const Text('Créer un compte'),
+                  const Text('Email', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _emailController,
+                    decoration: const InputDecoration(
+                      hintText: 'votre@email.com',
+                      prefixIcon: Icon(Icons.mail_outline),
+                    ),
+                    keyboardType: TextInputType.emailAddress,
+                    validator: (value) {
+                      if (value == null || value.isEmpty || !value.contains('@')) {
+                        return 'Veuillez entrer un email valide';
+                      }
+                      return null;
+                    },
                   ),
+                  const SizedBox(height: 16),
+                  const Text('Mot de passe', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _passwordController,
+                    decoration: const InputDecoration(
+                      hintText: '••••••••',
+                      prefixIcon: Icon(Icons.lock_outline),
+                    ),
+                    obscureText: true,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Veuillez entrer votre mot de passe';
+                      }
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: TextButton(
+                      onPressed: () => context.push('/forgot-password'),
+                      child: const Text('Mot de passe oublié ?'),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  _isLoading
+                      ? const Center(child: CircularProgressIndicator())
+                      : ElevatedButton(
+                          onPressed: _login,
+                          style: ElevatedButton.styleFrom(
+                            shape: const StadiumBorder(),
+                          ),
+                          child: const Text('Connexion'),
+                        ),
                 ],
               ),
-              const SizedBox(height: 24),
+            ),
+            const SizedBox(height: 24),
+            Column(
+              children: [
+                Text(
+                  'Pas encore de compte ?',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: Colors.grey[600]),
+                ),
+                TextButton(
+                  onPressed: () => context.go('/register'),
+                  child: const Text('Créer un compte'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 24),
           ],
         ),
       ),

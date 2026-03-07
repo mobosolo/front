@@ -1,14 +1,17 @@
+import 'dart:typed_data';
+
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart'; // Add this import
-import 'package:front/core/providers/upload_providers.dart'; // Add this import
-import 'dart:io'; // Add this import
+import 'package:front/core/providers/upload_providers.dart';
+import 'package:front/core/theme/app_theme.dart';
+import 'package:front/features/baskets/models/basket_model.dart';
 import 'package:front/features/baskets/providers/basket_providers.dart';
-import 'package:front/features/baskets/models/basket_model.dart'; // Import Basket model
+import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 class BasketFormScreen extends ConsumerStatefulWidget {
-  final String? basketId; // Null for creation, present for editing
+  final String? basketId;
 
   const BasketFormScreen({super.key, this.basketId});
 
@@ -20,17 +23,17 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
-  String? _selectedCategory; // SWEET, SAVORY, MIXED
   late TextEditingController _originalPriceController;
   late TextEditingController _discountedPriceController;
   late TextEditingController _quantityController;
   late DateTime _pickupTimeStart;
   late DateTime _pickupTimeEnd;
   late TextEditingController _photoURLController;
+  String? _selectedCategory;
 
   bool _isLoading = false;
   Basket? _currentBasket;
-  XFile? _imageFile; // Added for picked image
+  XFile? _imageFile;
 
   @override
   void initState() {
@@ -39,14 +42,26 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
     _descriptionController = TextEditingController();
     _originalPriceController = TextEditingController();
     _discountedPriceController = TextEditingController();
-    _quantityController = TextEditingController();
+    _quantityController = TextEditingController(text: '1');
     _photoURLController = TextEditingController();
-    _pickupTimeStart = DateTime.now();
-    _pickupTimeEnd = DateTime.now().add(const Duration(hours: 1));
+    _selectedCategory = 'MIXED';
+    _pickupTimeStart = DateTime.now().add(const Duration(hours: 1));
+    _pickupTimeEnd = DateTime.now().add(const Duration(hours: 3));
 
     if (widget.basketId != null) {
       _loadBasketData(widget.basketId!);
     }
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _descriptionController.dispose();
+    _originalPriceController.dispose();
+    _discountedPriceController.dispose();
+    _quantityController.dispose();
+    _photoURLController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadBasketData(String basketId) async {
@@ -63,12 +78,11 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
       _pickupTimeEnd = _currentBasket!.pickupTimeEnd;
       _photoURLController.text = _currentBasket!.photoURL ?? '';
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur de chargement du panier: ${e.toString()}')),
-        );
-        context.pop(); // Go back if basket not found or error
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur de chargement du panier: ${_extractErrorMessage(e)}')),
+      );
+      context.pop();
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -76,23 +90,12 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
     }
   }
 
-  @override
-  void dispose() {
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _originalPriceController.dispose();
-    _discountedPriceController.dispose();
-    _quantityController.dispose();
-    _photoURLController.dispose();
-    super.dispose();
-  }
-
   Future<void> _pickImage() async {
-    final ImagePicker picker = ImagePicker();
-    final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-    if (image != null) {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+    if (picked != null) {
       setState(() {
-        _imageFile = image;
+        _imageFile = picked;
       });
     }
   }
@@ -100,25 +103,36 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
   Future<void> _saveBasket() async {
     if (!_formKey.currentState!.validate()) return;
 
-    setState(() => _isLoading = true);
+    final isCreate = widget.basketId == null;
+    if (isCreate && _imageFile == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("L'image du panier est obligatoire.")),
+      );
+      return;
+    }
 
+    if (_pickupTimeEnd.isBefore(_pickupTimeStart) || _pickupTimeEnd.isAtSameMomentAs(_pickupTimeStart)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('L heure de fin doit etre apres l heure de debut.')),
+      );
+      return;
+    }
+
+    setState(() => _isLoading = true);
     try {
       final basketService = ref.read(basketServiceProvider);
-      final uploadService = ref.read(uploadServiceProvider); // Get upload service
+      final uploadService = ref.read(uploadServiceProvider);
 
-      String? photoURL = _photoURLController.text.isEmpty ? null : _photoURLController.text;
-
+      String? photoURL = _photoURLController.text.trim().isEmpty ? null : _photoURLController.text.trim();
       if (_imageFile != null) {
-        // Upload image if a new one is selected
         photoURL = await uploadService.uploadImage(_imageFile!);
       }
 
-      if (widget.basketId == null) {
-        // Create new basket
+      if (isCreate) {
         await basketService.createBasket(
-          title: _titleController.text,
-          description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
-          category: _selectedCategory,
+          title: _titleController.text.trim(),
+          description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+          category: _selectedCategory!,
           originalPrice: int.parse(_originalPriceController.text),
           discountedPrice: int.parse(_discountedPriceController.text),
           quantity: int.parse(_quantityController.text),
@@ -126,16 +140,16 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
           pickupTimeEnd: _pickupTimeEnd,
           photoURL: photoURL,
         );
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Panier créé avec succès!')),
+          const SnackBar(content: Text('Panier cree avec succes!')),
         );
       } else {
-        // Update existing basket
         await basketService.updateBasket(
           widget.basketId!,
-          title: _titleController.text,
-          description: _descriptionController.text.isEmpty ? null : _descriptionController.text,
-          category: _selectedCategory,
+          title: _titleController.text.trim(),
+          description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
+          category: _selectedCategory!,
           originalPrice: int.parse(_originalPriceController.text),
           discountedPrice: int.parse(_discountedPriceController.text),
           quantity: int.parse(_quantityController.text),
@@ -143,17 +157,18 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
           pickupTimeEnd: _pickupTimeEnd,
           photoURL: photoURL,
         );
+        if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Panier mis à jour avec succès!')),
+          const SnackBar(content: Text('Panier mis a jour avec succes!')),
         );
       }
-      if (mounted) context.pop(); // Go back to dashboard or previous screen
+
+      if (mounted) context.pop();
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la sauvegarde du panier: ${e.toString()}')),
-        );
-      }
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur lors de la sauvegarde: ${_extractErrorMessage(e)}')),
+      );
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -161,214 +176,362 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
     }
   }
 
+  String _extractErrorMessage(Object error) {
+    if (error is DioException) {
+      final data = error.response?.data;
+      if (data is Map<String, dynamic>) {
+        final list = data['errors'];
+        if (list is List && list.isNotEmpty) {
+          final first = list.first;
+          if (first is Map<String, dynamic>) {
+            final msg = first['msg']?.toString();
+            if (msg != null && msg.isNotEmpty) return msg;
+          }
+        }
+        final message = data['message']?.toString();
+        final backendError = data['error']?.toString();
+        if (message != null && message.isNotEmpty) return message;
+        if (backendError != null && backendError.isNotEmpty) return backendError;
+      }
+      return error.message ?? 'Erreur reseau';
+    }
+    return error.toString();
+  }
+
+  Future<void> _pickTime(bool isStart) async {
+    final source = isStart ? _pickupTimeStart : _pickupTimeEnd;
+    final picked = await showTimePicker(
+      context: context,
+      initialTime: TimeOfDay.fromDateTime(source),
+    );
+    if (picked == null) return;
+
+    setState(() {
+      final updated = DateTime(
+        source.year,
+        source.month,
+        source.day,
+        picked.hour,
+        picked.minute,
+      );
+      if (isStart) {
+        _pickupTimeStart = updated;
+      } else {
+        _pickupTimeEnd = updated;
+      }
+    });
+  }
+
+  String _hhmm(DateTime dt) {
+    final h = dt.hour.toString().padLeft(2, '0');
+    final m = dt.minute.toString().padLeft(2, '0');
+    return '$h:$m';
+  }
+
   @override
   Widget build(BuildContext context) {
-    final bool isEditing = widget.basketId != null;
+    final isEditing = widget.basketId != null;
 
-    if (_isLoading && isEditing) {
-      return Scaffold(
-        appBar: AppBar(title: const Text('Chargement du panier...')),
-        body: const Center(child: CircularProgressIndicator()),
+    if (_isLoading && isEditing && _currentBasket == null) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
       );
     }
 
     return Scaffold(
+      backgroundColor: AppTheme.background,
       appBar: AppBar(
-        title: Text(isEditing ? 'Modifier le Panier' : 'Créer un Panier'),
+        leading: IconButton(
+          onPressed: () => context.pop(),
+          icon: const Icon(Icons.arrow_back),
+        ),
+        title: Text(isEditing ? 'Modifier un panier' : 'Creer un panier'),
+        backgroundColor: Colors.white,
       ),
-      body: SafeArea(
-        child: Form(
-          key: _formKey,
-          child: ListView(
-            padding: const EdgeInsets.all(24.0),
-            children: [
-              _buildTextFormField(
-                controller: _titleController,
-                label: 'Titre du panier',
-                validator: (val) => val!.isEmpty ? 'Titre requis' : null,
-              ),
-              const SizedBox(height: 16),
-              _buildTextFormField(
-                controller: _descriptionController,
-                label: 'Description du panier',
-                maxLines: 3,
-              ),
-              const SizedBox(height: 16),
-              DropdownButtonFormField<String>(
-                value: _selectedCategory,
-                decoration: const InputDecoration(
-                  labelText: 'Catégorie',
-                  border: OutlineInputBorder(),
+      body: Form(
+        key: _formKey,
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          children: [
+            Text('Photo du panier', style: Theme.of(context).textTheme.bodyMedium),
+            const SizedBox(height: 8),
+            GestureDetector(
+              onTap: _pickImage,
+              child: Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  color: AppTheme.muted,
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(color: AppTheme.border),
                 ),
-                items: ['SWEET', 'SAVORY', 'MIXED']
-                    .map((category) => DropdownMenuItem(
-                          value: category,
-                          child: Text(category),
-                        ))
-                    .toList(),
-                onChanged: (value) {
-                  setState(() {
-                    _selectedCategory = value;
-                  });
-                },
-                validator: (val) => val == null ? 'Catégorie requise' : null,
+                child: _imageFile != null
+                    ? FutureBuilder<Uint8List>(
+                        future: _imageFile!.readAsBytes(),
+                        builder: (context, snapshot) {
+                          if (snapshot.hasData) {
+                            return ClipRRect(
+                              borderRadius: BorderRadius.circular(18),
+                              child: Image.memory(snapshot.data!, fit: BoxFit.cover),
+                            );
+                          }
+                          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+                        },
+                      )
+                    : (_photoURLController.text.trim().isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(18),
+                            child: Image.network(
+                              _photoURLController.text.trim(),
+                              fit: BoxFit.cover,
+                              errorBuilder: (context, error, stackTrace) => _photoPlaceholder(),
+                            ),
+                          )
+                        : _photoPlaceholder()),
               ),
-              const SizedBox(height: 16),
-              _buildTextFormField(
-                controller: _originalPriceController,
-                label: 'Prix original (€)',
-                keyboardType: TextInputType.number,
-                validator: (val) => val!.isEmpty || int.tryParse(val) == null ? 'Prix original requis' : null,
-              ),
-              const SizedBox(height: 16),
-              _buildTextFormField(
-                controller: _discountedPriceController,
-                label: 'Prix réduit (€)',
-                keyboardType: TextInputType.number,
-                validator: (val) => val!.isEmpty || int.tryParse(val) == null ? 'Prix réduit requis' : null,
-              ),
-              const SizedBox(height: 16),
-              _buildTextFormField(
-                controller: _quantityController,
-                label: 'Quantité disponible',
-                keyboardType: TextInputType.number,
-                validator: (val) => val!.isEmpty || int.tryParse(val) == null ? 'Quantité requise' : null,
-              ),
-              const SizedBox(height: 16),
-              ListTile(
-                title: Text('Heure de début de retrait: ${_pickupTimeStart.toLocal().toString().split(':').sublist(0,2).join(':')}'),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () => _pickDateTime(context, true),
-              ),
-              ListTile(
-                title: Text('Heure de fin de retrait: ${_pickupTimeEnd.toLocal().toString().split(':').sublist(0,2).join(':')}'),
-                trailing: const Icon(Icons.calendar_today),
-                onTap: () => _pickDateTime(context, false),
-              ),
-              const SizedBox(height: 16),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Image du panier (facultatif)', style: TextStyle(fontSize: 16)),
-                  const SizedBox(height: 8),
-                  Center(
-                    child: GestureDetector(
-                      onTap: _pickImage,
-                      child: Container(
-                        height: 150,
-                        width: 150,
-                        decoration: BoxDecoration(
-                          color: Colors.grey[200],
-                          borderRadius: BorderRadius.circular(8.0),
-                          border: Border.all(color: Colors.grey),
-                        ),
-                        child: _imageFile != null
-                            ? Image.file(
-                                File(_imageFile!.path),
-                                fit: BoxFit.cover,
-                              )
-                            : (_photoURLController.text.isNotEmpty
-                                ? Image.network(
-                                    _photoURLController.text,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (context, error, stackTrace) => const Icon(Icons.shopping_basket, size: 50, color: Colors.grey),
-                                  )
-                                : const Icon(Icons.shopping_basket, size: 50, color: Colors.grey)),
+            ),
+            const SizedBox(height: 18),
+            _fieldLabel('Titre du panier'),
+            const SizedBox(height: 8),
+            _input(
+              controller: _titleController,
+              hint: 'Ex: Panier Boulangerie du Jour',
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Titre requis' : null,
+            ),
+            const SizedBox(height: 16),
+            _fieldLabel('Categorie'),
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                Expanded(child: _categoryChip('SWEET', 'Sucre')),
+                const SizedBox(width: 8),
+                Expanded(child: _categoryChip('SAVORY', 'Sale')),
+                const SizedBox(width: 8),
+                Expanded(child: _categoryChip('MIXED', 'Mixte')),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _fieldLabel('Description'),
+            const SizedBox(height: 8),
+            _input(
+              controller: _descriptionController,
+              hint: 'Decrivez le contenu du panier...',
+              maxLines: 4,
+              validator: (v) => (v == null || v.trim().isEmpty) ? 'Description requise' : null,
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _fieldLabel('Prix original (F)'),
+                      const SizedBox(height: 8),
+                      _input(
+                        controller: _originalPriceController,
+                        hint: '3000',
+                        keyboardType: TextInputType.number,
+                        validator: (v) {
+                          final parsed = int.tryParse(v ?? '');
+                          if (parsed == null || parsed <= 0) return 'Invalide';
+                          return null;
+                        },
                       ),
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 8),
-                  Center(
-                    child: ElevatedButton(
-                      onPressed: _pickImage,
-                      child: const Text('Choisir une image'),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 32),
-              _isLoading
-                  ? const Center(child: CircularProgressIndicator())
-                  : ElevatedButton(
-                      onPressed: _saveBasket,
-                      style: ElevatedButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(vertical: 16),
-                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _fieldLabel('Prix reduit (F)'),
+                      const SizedBox(height: 8),
+                      _input(
+                        controller: _discountedPriceController,
+                        hint: '1000',
+                        keyboardType: TextInputType.number,
+                        validator: (v) {
+                          final parsed = int.tryParse(v ?? '');
+                          if (parsed == null || parsed <= 0) return 'Invalide';
+                          return null;
+                        },
                       ),
-                      child: Text(isEditing ? 'Mettre à jour le panier' : 'Créer le panier'),
-                    ),
-            ],
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _fieldLabel('Quantite disponible'),
+            const SizedBox(height: 8),
+            _input(
+              controller: _quantityController,
+              keyboardType: TextInputType.number,
+              validator: (v) {
+                final parsed = int.tryParse(v ?? '');
+                if (parsed == null || parsed <= 0) return 'Quantite invalide';
+                return null;
+              },
+            ),
+            const SizedBox(height: 16),
+            Row(
+              children: [
+                Expanded(
+                  child: _timeInput(
+                    label: 'Heure de debut',
+                    value: _hhmm(_pickupTimeStart),
+                    onTap: () => _pickTime(true),
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _timeInput(
+                    label: 'Heure de fin',
+                    value: _hhmm(_pickupTimeEnd),
+                    onTap: () => _pickTime(false),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
+            SizedBox(
+              height: 52,
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _saveBasket,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppTheme.primary,
+                  foregroundColor: Colors.white,
+                  shape: const StadiumBorder(),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : Text(isEditing ? 'Mettre a jour panier' : 'Publier panier'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _photoPlaceholder() {
+    return const Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.camera_alt_outlined, size: 34, color: AppTheme.mutedForeground),
+          SizedBox(height: 8),
+          Text('Prendre une photo', style: TextStyle(color: AppTheme.mutedForeground)),
+          SizedBox(height: 2),
+          Text('ou choisir depuis la galerie', style: TextStyle(fontSize: 12, color: AppTheme.mutedForeground)),
+        ],
+      ),
+    );
+  }
+
+  Widget _fieldLabel(String text) {
+    return Text(
+      text,
+      style: const TextStyle(
+        fontSize: 13,
+        fontWeight: FontWeight.w500,
+      ),
+    );
+  }
+
+  Widget _input({
+    required TextEditingController controller,
+    String? hint,
+    int maxLines = 1,
+    TextInputType? keyboardType,
+    String? Function(String?)? validator,
+  }) {
+    return TextFormField(
+      controller: controller,
+      maxLines: maxLines,
+      keyboardType: keyboardType,
+      validator: validator,
+      decoration: InputDecoration(
+        hintText: hint,
+        filled: true,
+        fillColor: Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppTheme.border),
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: const BorderSide(color: AppTheme.border),
+        ),
+      ),
+    );
+  }
+
+  Widget _categoryChip(String value, String label) {
+    final selected = _selectedCategory == value;
+    return InkWell(
+      onTap: () => setState(() => _selectedCategory = value),
+      borderRadius: BorderRadius.circular(12),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 12),
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.primary.withOpacity(0.08) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: selected ? AppTheme.primary : AppTheme.border,
+            width: selected ? 2 : 1,
+          ),
+        ),
+        child: Center(
+          child: Text(
+            label,
+            style: TextStyle(
+              fontWeight: FontWeight.w600,
+              color: selected ? AppTheme.primary : AppTheme.foreground,
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildTextFormField({
-    required TextEditingController controller,
+  Widget _timeInput({
     required String label,
-    TextInputType? keyboardType,
-    int? maxLines,
-    String? Function(String?)? validator,
-    IconData? icon, // Optional icon
+    required String value,
+    required VoidCallback onTap,
   }) {
-    return TextFormField(
-      controller: controller,
-      decoration: InputDecoration(
-        labelText: label,
-        prefixIcon: icon != null ? Icon(icon) : null, // Use icon if provided
-        border: const OutlineInputBorder(),
-      ),
-      keyboardType: keyboardType,
-      maxLines: maxLines,
-      validator: validator,
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _fieldLabel(label),
+        const SizedBox(height: 8),
+        InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(14),
+          child: Container(
+            height: 52,
+            padding: const EdgeInsets.symmetric(horizontal: 14),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: AppTheme.border),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.access_time, size: 18, color: AppTheme.mutedForeground),
+                const SizedBox(width: 8),
+                Text(value),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
-  }
-
-  Future<void> _pickDateTime(BuildContext context, bool isStart) async {
-    final DateTime initial = isStart ? _pickupTimeStart : _pickupTimeEnd;
-    final DateTime now = DateTime.now();
-
-    final DateTime? pickedDate = await showDatePicker(
-      context: context,
-      initialDate: initial.isBefore(now) ? now : initial,
-      firstDate: now,
-      lastDate: now.add(const Duration(days: 365 * 2)),
-    );
-    if (pickedDate == null) return;
-
-    final TimeOfDay? pickedTime = await showTimePicker(
-      context: context,
-      initialTime: TimeOfDay.fromDateTime(initial),
-    );
-    if (pickedTime == null) return;
-
-    final DateTime pickedDateTime = DateTime(
-      pickedDate.year,
-      pickedDate.month,
-      pickedDate.day,
-      pickedTime.hour,
-      pickedTime.minute,
-    );
-
-    if (!isStart && pickedDateTime.isBefore(_pickupTimeStart)) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('La fin doit être après le début.')),
-        );
-      }
-      return;
-    }
-
-    setState(() {
-      if (isStart) {
-        _pickupTimeStart = pickedDateTime;
-        if (_pickupTimeEnd.isBefore(_pickupTimeStart)) {
-          _pickupTimeEnd = _pickupTimeStart.add(const Duration(hours: 1));
-        }
-      } else {
-        _pickupTimeEnd = pickedDateTime;
-      }
-    });
   }
 }

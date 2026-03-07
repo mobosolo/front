@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:front/core/router/app_router.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:front/core/theme/app_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -42,10 +43,7 @@ class MyApp extends ConsumerWidget {
 
     return MaterialApp.router(
       title: 'MealFlavor',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.orange),
-        useMaterial3: true,
-      ),
+      theme: AppTheme.light(),
       routerConfig: goRouter, // Use the GoRouter from the provider
     );
   }
