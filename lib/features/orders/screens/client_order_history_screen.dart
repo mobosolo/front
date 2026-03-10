@@ -7,7 +7,14 @@ import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
 
 class ClientOrderHistoryScreen extends ConsumerStatefulWidget {
-  const ClientOrderHistoryScreen({super.key});
+  final String? initialTab;
+  final bool showValidatedMessage;
+
+  const ClientOrderHistoryScreen({
+    super.key,
+    this.initialTab,
+    this.showValidatedMessage = false,
+  });
 
   @override
   ConsumerState<ClientOrderHistoryScreen> createState() => _ClientOrderHistoryScreenState();
@@ -17,12 +24,28 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
   List<Order> _orders = [];
   bool _isLoading = true;
   String? _errorMessage;
-  String _activeTab = 'active'; // active | completed | cancelled
+  late String _activeTab; // active | completed | cancelled
 
   @override
   void initState() {
     super.initState();
+    _activeTab = _resolveInitialTab(widget.initialTab);
     _fetchClientOrders();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.showValidatedMessage && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Commande validee. Retrouvez-la dans Terminees.')),
+        );
+      }
+    });
+  }
+
+  String _resolveInitialTab(String? initialTab) {
+    if (initialTab == 'completed' || initialTab == 'cancelled') {
+      return initialTab!;
+    }
+    return 'active';
   }
 
   Future<void> _fetchClientOrders() async {
@@ -51,6 +74,22 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
       if (_activeTab == 'completed') return status == 'PICKED_UP';
       return status == 'CANCELLED';
     }).toList();
+  }
+
+  Future<void> _cancelOrder(Order order) async {
+    try {
+      await ref.read(orderServiceProvider).cancelOrder(order.id);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Commande annulee.')),
+      );
+      await _fetchClientOrders();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: ${e.toString()}')),
+      );
+    }
   }
 
   @override
@@ -85,7 +124,8 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
                   children: _filteredOrders
                       .map((order) => _OrderCard(
                             order: order,
-                            onTap: () => context.push('/order-confirmation/${order.id}'),
+                            onTap: _activeTab == 'active' ? () => context.push('/order-confirmation/${order.id}') : null,
+                            onCancel: _activeTab == 'active' ? () => _cancelOrder(order) : null,
                           ))
                       .toList(),
                 ),
@@ -165,9 +205,10 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
 
 class _OrderCard extends StatelessWidget {
   final Order order;
-  final VoidCallback onTap;
+  final VoidCallback? onTap;
+  final VoidCallback? onCancel;
 
-  const _OrderCard({required this.order, required this.onTap});
+  const _OrderCard({required this.order, this.onTap, this.onCancel});
 
   @override
   Widget build(BuildContext context) {
@@ -252,6 +293,20 @@ class _OrderCard extends StatelessWidget {
                         Text('${order.price} F', style: Theme.of(context).textTheme.bodyMedium),
                       ],
                     ),
+                    if (status == 'RESERVED' && onCancel != null) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton(
+                          onPressed: onCancel,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppTheme.destructive,
+                            side: const BorderSide(color: AppTheme.destructive),
+                          ),
+                          child: const Text('Annuler la commande'),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 6),
                     Text(
                       _formatDate(order.createdAt),

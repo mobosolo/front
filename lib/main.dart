@@ -44,6 +44,7 @@ class MyApp extends ConsumerWidget {
     return MaterialApp.router(
       title: 'MealFlavor',
       theme: AppTheme.light(),
+      debugShowCheckedModeBanner: false,
       routerConfig: goRouter, // Use the GoRouter from the provider
     );
   }

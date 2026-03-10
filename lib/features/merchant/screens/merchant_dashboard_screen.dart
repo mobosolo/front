@@ -1,15 +1,45 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
+import 'package:front/features/merchant/models/merchant_stats_model.dart';
+import 'package:front/features/merchant/providers/merchant_providers.dart';
 
-class MerchantDashboardScreen extends ConsumerWidget {
+class MerchantDashboardScreen extends ConsumerStatefulWidget {
   const MerchantDashboardScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<MerchantDashboardScreen> createState() => _MerchantDashboardScreenState();
+}
+
+class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScreen> {
+  MerchantDailyStats? _stats;
+  bool _isLoadingStats = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    try {
+      final merchantService = ref.read(merchantServiceProvider);
+      final stats = await merchantService.getDailyStats();
+      if (!mounted) return;
+      setState(() => _stats = stats);
+    } catch (e) {
+      if (!mounted) return;
+      setState(() => _stats = null);
+    } finally {
+      if (mounted) setState(() => _isLoadingStats = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
     final merchant = authState.user?.merchant;
     final merchantStatus = merchant?.status;
@@ -23,10 +53,10 @@ class MerchantDashboardScreen extends ConsumerWidget {
       }
 
       final message = merchantStatus == null
-          ? 'Complétez votre profil commerçant avant de créer un panier.'
+          ? 'Completez votre profil commercant avant de creer un panier.'
           : merchantStatus == 'PENDING'
-              ? 'Votre profil commerçant est en attente de validation.'
-              : 'Votre profil commerçant doit être approuvé pour créer un panier.';
+              ? 'Votre profil commercant est en attente de validation.'
+              : 'Votre profil commercant doit etre approuve pour creer un panier.';
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
@@ -49,25 +79,25 @@ class MerchantDashboardScreen extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
               child: Column(
-                children: const [
+                children: [
                   _StatCard(
                     icon: Icons.shopping_bag_outlined,
                     label: "Paniers vendus aujourd'hui",
-                    value: '0',
+                    value: _isLoadingStats ? '--' : (_stats?.basketsSoldToday ?? 0).toString(),
                     color: AppTheme.primary,
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   _StatCard(
                     icon: Icons.attach_money,
                     label: "Revenu aujourd'hui",
-                    value: '0 F',
+                    value: _isLoadingStats ? '--' : '${_stats?.revenueToday ?? 0} F',
                     color: AppTheme.secondary,
                   ),
-                  SizedBox(height: 12),
+                  const SizedBox(height: 12),
                   _StatCard(
                     icon: Icons.eco,
-                    label: 'Nourriture sauvée (kg)',
-                    value: '0',
+                    label: 'Nourriture sauvee (kg)',
+                    value: _isLoadingStats ? '--' : (_stats?.foodSavedKg ?? 0).toString(),
                     color: AppTheme.success,
                   ),
                 ],
@@ -145,7 +175,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
             child: ElevatedButton.icon(
               onPressed: onCreate,
               icon: const Icon(Icons.add),
-              label: const Text('Créer un panier'),
+              label: const Text('Creer un panier'),
               style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
             ),
           ),
@@ -178,7 +208,7 @@ class MerchantDashboardScreen extends ConsumerWidget {
               child: const Icon(Icons.add, color: AppTheme.primary),
             ),
             const SizedBox(width: 12),
-            const Expanded(child: Text('Créer un nouveau panier')),
+            const Expanded(child: Text('Creer un nouveau panier')),
           ],
         ),
       ),

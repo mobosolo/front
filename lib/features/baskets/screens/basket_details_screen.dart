@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/features/baskets/providers/basket_providers.dart';
@@ -37,7 +37,7 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Erreur lors du chargement des détails du panier: ${e.toString()}';
+          _errorMessage = 'Erreur lors du chargement des details du panier: ${e.toString()}';
         });
       }
     } finally {
@@ -49,11 +49,37 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
 
   void _reserveBasket() {
     if (_basket == null) return;
-    context.push('/select-payment-method', extra: {'basketId': _basket!.id, 'price': _basket!.discountedPrice});
+    final basket = _basket!;
+    context.push(
+      '/select-payment-method',
+      extra: {
+        'basketId': basket.id,
+        'price': basket.discountedPrice,
+        'basketTitle': basket.title,
+        'merchantName': basket.merchant?.businessName,
+        'pickupStart': _time(basket.pickupTimeStart),
+        'pickupEnd': _time(basket.pickupTimeEnd),
+      },
+    );
   }
 
   void _editBasket(String basketId) {
     context.push('/edit-basket/$basketId');
+  }
+
+  void _openMerchantOnMap() {
+    if (_basket?.merchant?.latitude == null || _basket?.merchant?.longitude == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Coordonnees du commerce indisponibles.')),
+      );
+      return;
+    }
+
+    final lat = _basket!.merchant!.latitude!;
+    final lon = _basket!.merchant!.longitude!;
+    final label = Uri.encodeComponent(_basket!.merchant?.businessName ?? 'Commerce');
+    final basketId = Uri.encodeComponent(_basket!.id);
+    context.push('/map?lat=$lat&lon=$lon&label=$label&basketId=$basketId');
   }
 
   Future<void> _deleteBasket(String basketId) async {
@@ -62,7 +88,7 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
       builder: (BuildContext context) {
         return AlertDialog(
           title: const Text('Confirmer la suppression'),
-          content: const Text('Êtes-vous sûr de vouloir supprimer ce panier ?'),
+          content: const Text('Etes-vous sur de vouloir supprimer ce panier ?'),
           actions: <Widget>[
             TextButton(
               onPressed: () => Navigator.of(context).pop(false),
@@ -82,7 +108,7 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
         await ref.read(basketServiceProvider).deleteBasket(basketId);
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Panier supprimé avec succès!')),
+            const SnackBar(content: Text('Panier supprime avec succes!')),
           );
           context.go('/merchant-dashboard');
         }
@@ -117,11 +143,13 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
 
     if (_basket == null) {
       return const Scaffold(
-        body: Center(child: Text('Panier non trouvé.')),
+        body: Center(child: Text('Panier non trouve.')),
       );
     }
 
     final basket = _basket!;
+    final isUnavailable = _isUnavailable(basket);
+    final unavailableLabel = _unavailableLabel(basket);
     final savings = basket.originalPrice > 0
         ? (((basket.originalPrice - basket.discountedPrice) / basket.originalPrice) * 100).round()
         : 0;
@@ -132,122 +160,155 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
         child: Stack(
           children: [
             _headerImage(basket),
-          Positioned(
-            top: 40,
-            left: 16,
-            child: _circleButton(
-              icon: Icons.arrow_back,
-              onTap: () => context.pop(),
-            ),
-          ),
-          Positioned(
-            top: 40,
-            right: 16,
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(999),
-                boxShadow: const [
-                  BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 4)),
-                ],
-              ),
-              child: Text(
-                '-$savings%',
-                style: const TextStyle(fontWeight: FontWeight.w600),
+            Positioned(
+              top: 40,
+              left: 16,
+              child: _circleButton(
+                icon: Icons.arrow_back,
+                onTap: () => context.pop(),
               ),
             ),
-          ),
-          Positioned.fill(
-            top: 220,
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(basket.title, style: Theme.of(context).textTheme.headlineMedium),
-                        ),
-                        if (isOwner) ...[
-                          IconButton(
-                            onPressed: () => _editBasket(basket.id),
-                            icon: const Icon(Icons.edit, color: AppTheme.primary),
-                          ),
-                          IconButton(
-                            onPressed: () => _deleteBasket(basket.id),
-                            icon: const Icon(Icons.delete, color: AppTheme.destructive),
-                          ),
-                        ],
-                      ],
-                    ),
-                    if (basket.merchant?.businessName != null)
-                      Text(
-                        basket.merchant!.businessName!,
-                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
-                      ),
-                    const SizedBox(height: 20),
-                    _sectionTitle('Description'),
-                    Text(
-                      basket.description ?? 'Aucune description',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
-                    ),
-                    const SizedBox(height: 20),
-                    _infoCard(
-                      icon: Icons.schedule,
-                      title: 'Horaire de retrait',
-                      body: '${_time(basket.pickupTimeStart)} - ${_time(basket.pickupTimeEnd)}',
-                    ),
-                    const SizedBox(height: 12),
-                    if (basket.merchant?.address != null)
-                      _infoCard(
-                        icon: Icons.location_on_outlined,
-                        title: 'Adresse',
-                        body: basket.merchant!.address!,
-                      ),
-                    const SizedBox(height: 20),
-                    const Divider(),
-                    const SizedBox(height: 12),
-                    _priceRow('Prix original', '${basket.originalPrice} F', muted: true, strike: true),
-                    _priceRow('Économie', '-${basket.originalPrice - basket.discountedPrice} F ($savings%)',
-                        color: AppTheme.success),
-                    _priceRow('Prix final', '${basket.discountedPrice} F',
-                        color: AppTheme.primary, bold: true, large: true),
-                    const SizedBox(height: 24),
-                    if (!isMerchant || !isOwner) ...[
-                      SizedBox(
-                        width: double.infinity,
-                        child: ElevatedButton(
-                          onPressed: _reserveBasket,
-                          style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
-                          child: const Text('Réserver maintenant'),
-                        ),
-                      ),
-                      const SizedBox(height: 12),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: () {},
-                          style: OutlinedButton.styleFrom(
-                            shape: const StadiumBorder(),
-                            side: const BorderSide(color: AppTheme.primary),
-                          ),
-                          child: const Text('Voir le commerce'),
-                        ),
-                      ),
-                    ],
-                    const SizedBox(height: 24),
+            Positioned(
+              top: 40,
+              right: 16,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(999),
+                  boxShadow: const [
+                    BoxShadow(color: Color(0x14000000), blurRadius: 8, offset: Offset(0, 4)),
                   ],
+                ),
+                child: Text(
+                  '-$savings%',
+                  style: const TextStyle(fontWeight: FontWeight.w600),
                 ),
               ),
             ),
-          ),
+            Positioned.fill(
+              top: 220,
+              child: Container(
+                decoration: const BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(basket.title, style: Theme.of(context).textTheme.headlineMedium),
+                          ),
+                          if (isOwner) ...[
+                            IconButton(
+                              onPressed: () => _editBasket(basket.id),
+                              icon: const Icon(Icons.edit, color: AppTheme.primary),
+                            ),
+                            IconButton(
+                              onPressed: () => _deleteBasket(basket.id),
+                              icon: const Icon(Icons.delete, color: AppTheme.destructive),
+                            ),
+                          ],
+                        ],
+                      ),
+                      if (isUnavailable) ...[
+                        const SizedBox(height: 10),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: AppTheme.destructive.withOpacity(0.12),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, color: AppTheme.destructive, size: 18),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Text(
+                                  'Panier $unavailableLabel.',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodyMedium
+                                      ?.copyWith(color: AppTheme.destructive, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (basket.merchant?.businessName != null)
+                        Text(
+                          basket.merchant!.businessName!,
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+                        ),
+                      const SizedBox(height: 20),
+                      _sectionTitle('Description'),
+                      Text(
+                        basket.description ?? 'Aucune description',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+                      ),
+                      const SizedBox(height: 20),
+                      _infoCard(
+                        icon: Icons.schedule,
+                        title: 'Horaire de retrait',
+                        body: '${_time(basket.pickupTimeStart)} - ${_time(basket.pickupTimeEnd)}',
+                      ),
+                      const SizedBox(height: 12),
+                      if (basket.merchant?.address != null)
+                        _infoCard(
+                          icon: Icons.location_on_outlined,
+                          title: 'Adresse',
+                          body: basket.merchant!.address!,
+                        ),
+                      const SizedBox(height: 20),
+                      const Divider(),
+                      const SizedBox(height: 12),
+                      _priceRow('Prix original', '${basket.originalPrice} F', muted: true, strike: true),
+                      _priceRow(
+                        'Economie',
+                        '-${basket.originalPrice - basket.discountedPrice} F ($savings%)',
+                        color: AppTheme.success,
+                      ),
+                      _priceRow(
+                        'Prix final',
+                        '${basket.discountedPrice} F',
+                        color: AppTheme.primary,
+                        bold: true,
+                        large: true,
+                      ),
+                      const SizedBox(height: 24),
+                      if (!isMerchant || !isOwner) ...[
+                        SizedBox(
+                          width: double.infinity,
+                          child: ElevatedButton(
+                            onPressed: isUnavailable ? null : _reserveBasket,
+                            style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
+                            child: Text(isUnavailable ? 'Indisponible' : 'Reserver maintenant'),
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        SizedBox(
+                          width: double.infinity,
+                          child: OutlinedButton(
+                            onPressed: _openMerchantOnMap,
+                            style: OutlinedButton.styleFrom(
+                              shape: const StadiumBorder(),
+                              side: const BorderSide(color: AppTheme.primary),
+                            ),
+                            child: const Text('Voir le commerce'),
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 24),
+                    ],
+                  ),
+                ),
+              ),
+            ),
           ],
         ),
       ),
@@ -345,5 +406,21 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+
+  bool _isUnavailable(Basket basket) {
+    final status = basket.status.toUpperCase();
+    if (status != 'AVAILABLE') return true;
+    if (basket.availableQuantity <= 0) return true;
+    if (basket.pickupTimeEnd.isBefore(DateTime.now())) return true;
+    return false;
+  }
+
+  String _unavailableLabel(Basket basket) {
+    final status = basket.status.toUpperCase();
+    if (status == 'SOLD_OUT' || basket.availableQuantity <= 0) return 'Epuise';
+    if (status == 'EXPIRED') return 'Termine';
+    if (basket.pickupTimeEnd.isBefore(DateTime.now())) return 'Termine';
+    return 'Indisponible';
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:qr_flutter/qr_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'package:front/features/orders/providers/order_providers.dart';
 import 'package:front/features/orders/models/order_model.dart';
 import 'package:front/core/theme/app_theme.dart';
@@ -21,6 +22,7 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
   Order? _order;
   bool _isLoading = true;
   String? _errorMessage;
+  bool _isRedirecting = false;
 
   @override
   void initState() {
@@ -36,16 +38,49 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
     try {
       final orderService = ref.read(orderServiceProvider);
       _order = await orderService.getOrderDetails(widget.orderId);
+      if (mounted && _order?.orderStatus.toUpperCase() == 'PICKED_UP') {
+        _isRedirecting = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) return;
+          context.go('/client-orders?tab=completed&validated=1');
+        });
+      }
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = 'Erreur lors du chargement des détails de la commande: ${e.toString()}';
+          _errorMessage = 'Erreur lors du chargement des details de la commande: ${e.toString()}';
         });
       }
     } finally {
-      if (mounted) {
+      if (mounted && !_isRedirecting) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  Future<void> _openDirections() async {
+    if (_order == null) return;
+
+    final destination = (_order!.merchant?.address ?? '').trim().isNotEmpty
+        ? _order!.merchant!.address!.trim()
+        : (_order!.merchant?.businessName ?? '').trim();
+
+    if (destination.isEmpty) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Adresse du commerce indisponible.')),
+      );
+      return;
+    }
+
+    final encoded = Uri.encodeComponent(destination);
+    final mapsUrl = Uri.parse('https://www.google.com/maps/dir/?api=1&destination=$encoded');
+    final launched = await launchUrl(mapsUrl, mode: LaunchMode.externalApplication);
+
+    if (!launched && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text("Impossible d'ouvrir l'itineraire.")),
+      );
     }
   }
 
@@ -65,7 +100,7 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
 
     if (_order == null) {
       return const Scaffold(
-        body: Center(child: Text('Commande non trouvée.')),
+        body: Center(child: Text('Commande non trouvee.')),
       );
     }
 
@@ -103,10 +138,10 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
             child: const Icon(Icons.check_circle, size: 48, color: Colors.white),
           ),
           const SizedBox(height: 12),
-          Text('Paiement confirmé 🎉', style: Theme.of(context).textTheme.headlineMedium),
+          Text('Paiement confirme', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 8),
           Text(
-            'Présentez ce QR code au commerçant lors du retrait',
+            'Presentez ce QR code au commercant lors du retrait',
             textAlign: TextAlign.center,
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
           ),
@@ -178,9 +213,9 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: () {},
+              onPressed: _openDirections,
               icon: const Icon(Icons.navigation),
-              label: const Text("Ouvrir l'itinéraire"),
+              label: const Text("Ouvrir l'itineraire"),
               style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
             ),
           ),
@@ -190,7 +225,7 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
             child: OutlinedButton.icon(
               onPressed: () => context.go('/baskets'),
               icon: const Icon(Icons.home, color: AppTheme.primary),
-              label: const Text('Retour à l\'accueil'),
+              label: const Text('Retour a l\'accueil'),
               style: OutlinedButton.styleFrom(
                 shape: const StadiumBorder(),
                 side: const BorderSide(color: AppTheme.primary),
@@ -207,7 +242,7 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
     final order = _order!;
     final start = order.basket?.pickupTimeStart;
     final end = order.basket?.pickupTimeEnd;
-    if (start == null || end == null) return 'Retrait: —';
+    if (start == null || end == null) return 'Retrait: -';
     return 'Retrait: ${_time(start)} - ${_time(end)}';
   }
 

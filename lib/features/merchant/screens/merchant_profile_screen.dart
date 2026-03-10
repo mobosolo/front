@@ -219,8 +219,6 @@ class _MerchantProfileScreenState extends ConsumerState<MerchantProfileScreen> {
           children: [
             _header(context, displayName, displayType),
             _detailsSection(context, theme, hasMerchant),
-            _settingsSection(context),
-            _switchRole(context),
             _logout(context, ref),
             const SizedBox(height: 24),
           ],
@@ -485,54 +483,6 @@ class _MerchantProfileScreenState extends ConsumerState<MerchantProfileScreen> {
             ],
           ),
         ],
-      ),
-    );
-  }
-
-  Widget _settingsSection(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 4),
-      child: Container(
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          boxShadow: const [
-            BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 4)),
-          ],
-        ),
-        child: InkWell(
-          onTap: () {},
-          child: const Padding(
-            padding: EdgeInsets.all(16),
-            child: Row(
-              children: [
-                Icon(Icons.settings_outlined, color: AppTheme.mutedForeground),
-                SizedBox(width: 12),
-                Expanded(child: Text('Parametres')),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _switchRole(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 4),
-      child: SizedBox(
-        width: double.infinity,
-        child: OutlinedButton(
-          onPressed: () {},
-          style: OutlinedButton.styleFrom(
-            backgroundColor: AppTheme.secondary.withOpacity(0.08),
-            foregroundColor: AppTheme.secondary,
-            side: BorderSide.none,
-            shape: const StadiumBorder(),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          child: const Text('Passer en mode client'),
-        ),
       ),
     );
   }

@@ -34,8 +34,10 @@ dependencies:
   flutter_riverpod: ^2.4.9 # Pour la gestion d'état (ou Provider selon ta préférence)
   go_router: ^13.1.0    # Pour la navigation
   shared_preferences: ^2.2.2
-  google_maps_flutter: ^2.5.0 # For map view
+  flutter_map: ^7.0.2         # For OpenStreetMap view
+  latlong2: ^0.9.1            # LatLng model for flutter_map
   geolocator: ^11.0.0       # For geolocation
+  geocoding: ^3.0.0         # Reverse geocoding (coords -> address)
   qr_flutter: ^4.1.0        # For QR code generation
   mobile_scanner: ^5.1.0    # For QR code scanning
   image_picker: ^1.0.7      # For picking images from gallery/camera

@@ -70,5 +70,14 @@ class OrderService {
     }
   }
 
+  Future<void> cancelOrder(String orderId) async {
+    try {
+      await _dio.post('/orders/$orderId/cancel');
+    } on DioException catch (e) {
+      print('DioError cancelling order: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
   // TODO: Add methods for validatePickup
 }

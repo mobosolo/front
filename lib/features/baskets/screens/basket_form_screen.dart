@@ -29,7 +29,6 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
   late DateTime _pickupTimeStart;
   late DateTime _pickupTimeEnd;
   late TextEditingController _photoURLController;
-  String? _selectedCategory;
 
   bool _isLoading = false;
   Basket? _currentBasket;
@@ -44,7 +43,6 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
     _discountedPriceController = TextEditingController();
     _quantityController = TextEditingController(text: '1');
     _photoURLController = TextEditingController();
-    _selectedCategory = 'MIXED';
     _pickupTimeStart = DateTime.now().add(const Duration(hours: 1));
     _pickupTimeEnd = DateTime.now().add(const Duration(hours: 3));
 
@@ -70,7 +68,6 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
       _currentBasket = await ref.read(basketServiceProvider).getBasketDetails(basketId);
       _titleController.text = _currentBasket!.title;
       _descriptionController.text = _currentBasket!.description ?? '';
-      _selectedCategory = _currentBasket!.category;
       _originalPriceController.text = _currentBasket!.originalPrice.toString();
       _discountedPriceController.text = _currentBasket!.discountedPrice.toString();
       _quantityController.text = _currentBasket!.quantity.toString();
@@ -132,7 +129,7 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
         await basketService.createBasket(
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
-          category: _selectedCategory!,
+          category: 'MIXED',
           originalPrice: int.parse(_originalPriceController.text),
           discountedPrice: int.parse(_discountedPriceController.text),
           quantity: int.parse(_quantityController.text),
@@ -149,7 +146,7 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
           widget.basketId!,
           title: _titleController.text.trim(),
           description: _descriptionController.text.trim().isEmpty ? null : _descriptionController.text.trim(),
-          category: _selectedCategory!,
+          category: 'MIXED',
           originalPrice: int.parse(_originalPriceController.text),
           discountedPrice: int.parse(_discountedPriceController.text),
           quantity: int.parse(_quantityController.text),
@@ -297,19 +294,6 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
               hint: 'Ex: Panier Boulangerie du Jour',
               validator: (v) => (v == null || v.trim().isEmpty) ? 'Titre requis' : null,
             ),
-            const SizedBox(height: 16),
-            _fieldLabel('Categorie'),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(child: _categoryChip('SWEET', 'Sucre')),
-                const SizedBox(width: 8),
-                Expanded(child: _categoryChip('SAVORY', 'Sale')),
-                const SizedBox(width: 8),
-                Expanded(child: _categoryChip('MIXED', 'Mixte')),
-              ],
-            ),
-            const SizedBox(height: 16),
             _fieldLabel('Description'),
             const SizedBox(height: 8),
             _input(
@@ -467,35 +451,6 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(14),
           borderSide: const BorderSide(color: AppTheme.border),
-        ),
-      ),
-    );
-  }
-
-  Widget _categoryChip(String value, String label) {
-    final selected = _selectedCategory == value;
-    return InkWell(
-      onTap: () => setState(() => _selectedCategory = value),
-      borderRadius: BorderRadius.circular(12),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(vertical: 12),
-        decoration: BoxDecoration(
-          color: selected ? AppTheme.primary.withOpacity(0.08) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: selected ? AppTheme.primary : AppTheme.border,
-            width: selected ? 2 : 1,
-          ),
-        ),
-        child: Center(
-          child: Text(
-            label,
-            style: TextStyle(
-              fontWeight: FontWeight.w600,
-              color: selected ? AppTheme.primary : AppTheme.foreground,
-            ),
-          ),
         ),
       ),
     );

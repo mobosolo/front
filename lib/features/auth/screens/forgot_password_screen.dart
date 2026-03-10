@@ -1,14 +1,16 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:front/features/auth/providers/auth_providers.dart';
 
-class ForgotPasswordScreen extends StatefulWidget {
+class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
 
   @override
-  State<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
+  ConsumerState<ForgotPasswordScreen> createState() => _ForgotPasswordScreenState();
 }
 
-class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
+class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
@@ -20,21 +22,35 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   }
 
   Future<void> _resetPassword() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
-      
-      // Simulate API call
-      await Future.delayed(const Duration(seconds: 2));
+    if (!_formKey.currentState!.validate()) return;
 
-      // Since there is no API endpoint specified in dev.md, we just show a success message.
+    setState(() => _isLoading = true);
+    try {
+      final authService = ref.read(authServiceProvider);
+      final response = await authService.requestPasswordReset(_emailController.text.trim());
+      if (!mounted) return;
+
+      final token = response['token']?.toString();
+      final message = response['message']?.toString() ??
+          'Si votre email est correct, vous recevrez un lien de reinitialisation.';
+
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Si votre email est correct, vous recevrez un lien de réinitialisation.')),
+        SnackBar(content: Text(message)),
       );
 
-      if (mounted) {
-        setState(() => _isLoading = false);
-        context.pop();
+      if (token != null && token.isNotEmpty) {
+        context.push('/reset-password', extra: {
+          'email': _emailController.text.trim(),
+          'token': token,
+        });
       }
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur: ${e.toString()}')),
+      );
+    } finally {
+      if (mounted) setState(() => _isLoading = false);
     }
   }
 
@@ -42,7 +58,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Mot de passe oublié'),
+        title: const Text('Mot de passe oublie'),
         backgroundColor: Colors.transparent,
         elevation: 0,
       ),
@@ -56,12 +72,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
               children: [
                 const SizedBox(height: 20),
                 Text(
-                  'Récupérez votre compte',
+                  'Recuperez votre compte',
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 16),
                 const Text(
-                  'Entrez votre adresse email pour recevoir un lien de réinitialisation de mot de passe.',
+                  'Entrez votre adresse email pour recevoir un lien de reinitialisation de mot de passe.',
                   style: TextStyle(color: Colors.grey),
                 ),
                 const SizedBox(height: 32),
@@ -88,8 +104,13 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                         style: ElevatedButton.styleFrom(
                           padding: const EdgeInsets.symmetric(vertical: 16),
                         ),
-                        child: const Text('Réinitialiser le mot de passe'),
+                        child: const Text('Reinitialiser le mot de passe'),
                       ),
+                const SizedBox(height: 12),
+                TextButton(
+                  onPressed: () => context.push('/reset-password'),
+                  child: const Text('J ai deja un code'),
+                ),
               ],
             ),
           ),

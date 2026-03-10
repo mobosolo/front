@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:front/features/baskets/providers/basket_providers.dart';
-import 'package:front/features/baskets/models/basket_summary_model.dart';
-import 'package:front/features/auth/providers/auth_providers.dart';
-import 'package:front/core/providers/storage_providers.dart';
+import 'package:front/core/providers/location_providers.dart';
 import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
+import 'package:front/features/auth/providers/auth_providers.dart';
+import 'package:front/features/baskets/models/basket_summary_model.dart';
+import 'package:front/features/baskets/providers/basket_providers.dart';
 
 class BasketListScreen extends ConsumerStatefulWidget {
   const BasketListScreen({super.key});
@@ -20,7 +20,13 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
   bool _isLoading = false;
   String? _selectedCategory;
   int? _maxPrice;
+  int _radiusKm = 10;
+  double? _currentLatitude;
+  double? _currentLongitude;
+  String _locationLabel = 'Localisation en cours...';
+
   final TextEditingController _maxPriceController = TextEditingController();
+  final TextEditingController _radiusController = TextEditingController(text: '10');
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -32,6 +38,7 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
   @override
   void dispose() {
     _maxPriceController.dispose();
+    _radiusController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -39,28 +46,56 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
   Future<void> _fetchBaskets() async {
     setState(() => _isLoading = true);
     try {
+      if (_currentLatitude == null || _currentLongitude == null) {
+        final locationService = ref.read(locationServiceProvider);
+        final location = await locationService.getCurrentLocation();
+        if (location != null) {
+          _currentLatitude = location.latitude;
+          _currentLongitude = location.longitude;
+          final address = await locationService.getReadableAddress(
+            _currentLatitude!,
+            _currentLongitude!,
+          );
+          _locationLabel = address ?? 'Adresse indisponible';
+        } else {
+          _locationLabel = 'Position indisponible';
+        }
+      }
+
       final basketService = ref.read(basketServiceProvider);
       _baskets = await basketService.getBaskets(
-        // Localisation ignorée pour le moment
+        lat: _currentLatitude,
+        lon: _currentLongitude,
+        radius: _radiusKm,
         category: _selectedCategory,
         maxPrice: _maxPrice,
       );
     } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Erreur de chargement des paniers: ${e.toString()}'),
-          ),
+      try {
+        final basketService = ref.read(basketServiceProvider);
+        _baskets = await basketService.getBaskets(
+          category: _selectedCategory,
+          maxPrice: _maxPrice,
         );
+        _locationLabel = 'Position indisponible (liste globale)';
+      } catch (fallbackError) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Erreur chargement paniers: ${fallbackError.toString()}')),
+          );
+        }
       }
     } finally {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
     }
   }
 
   void _applyFilters() {
     setState(() {
       _maxPrice = int.tryParse(_maxPriceController.text);
+      _radiusKm = int.tryParse(_radiusController.text) ?? 10;
     });
     _fetchBaskets();
     Navigator.of(context).pop();
@@ -75,14 +110,11 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text(
-                'Filtrer les paniers',
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
+              Text('Filtrer les paniers', style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 16),
               DropdownButtonFormField<String>(
                 value: _selectedCategory,
-                decoration: const InputDecoration(labelText: 'Catégorie'),
+                decoration: const InputDecoration(labelText: 'Categorie'),
                 items: ['SWEET', 'SAVORY', 'MIXED', null]
                     .map(
                       (category) => DropdownMenuItem(
@@ -99,10 +131,16 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
                 decoration: const InputDecoration(labelText: 'Prix maximum'),
                 keyboardType: TextInputType.number,
               ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: _radiusController,
+                decoration: const InputDecoration(labelText: 'Rayon (km)'),
+                keyboardType: TextInputType.number,
+              ),
               const SizedBox(height: 16),
               ElevatedButton(
                 onPressed: _applyFilters,
-                child: const Text('Appliquer les filtres'),
+                child: const Text('Appliquer'),
               ),
             ],
           ),
@@ -129,25 +167,20 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
 
     return Scaffold(
       backgroundColor: AppTheme.background,
-      bottomNavigationBar: BottomNav(
-        activeTab: 'home',
-        role: user?.role ?? 'CLIENT',
-      ),
+      bottomNavigationBar: BottomNav(activeTab: 'home', role: user?.role ?? 'CLIENT'),
       body: SafeArea(
         child: ListView(
           children: [
             _Header(
               userName: userName,
+              locationLabel: _locationLabel,
               onSearchChanged: (_) => setState(() {}),
               searchController: _searchController,
             ),
             const SizedBox(height: 16),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 24.0),
-              child: Text(
-                'Paniers disponibles',
-                style: Theme.of(context).textTheme.headlineMedium,
-              ),
+              child: Text('Paniers autour de vous', style: Theme.of(context).textTheme.headlineMedium),
             ),
             const SizedBox(height: 12),
             if (_isLoading)
@@ -158,7 +191,7 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
             else if (_filteredBaskets.isEmpty)
               const Padding(
                 padding: EdgeInsets.symmetric(vertical: 24.0),
-                child: Center(child: Text('Aucun panier trouvé')),
+                child: Center(child: Text('Aucun panier trouve')),
               )
             else
               Padding(
@@ -168,13 +201,16 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
                       .map(
                         (basket) => _BasketCard(
                           basket: basket,
-                          onTap: () =>
-                              context.push('/basket-details/${basket.id}'),
+                          onTap: () => context.push('/basket-details/${basket.id}'),
                           onReserve: () => context.push(
                             '/select-payment-method',
                             extra: {
                               'basketId': basket.id,
                               'price': basket.discountedPrice,
+                              'basketTitle': basket.title,
+                              'merchantName': basket.merchant?.businessName,
+                              'pickupStart': basket.pickupTimeStart != null ? _formatTime(basket.pickupTimeStart!) : null,
+                              'pickupEnd': basket.pickupTimeEnd != null ? _formatTime(basket.pickupTimeEnd!) : null,
                             },
                           ),
                         ),
@@ -190,13 +226,21 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
   }
 }
 
+String _formatTime(DateTime dt) {
+  final h = dt.hour.toString().padLeft(2, '0');
+  final m = dt.minute.toString().padLeft(2, '0');
+  return '$h:$m';
+}
+
 class _Header extends StatelessWidget {
   final String userName;
+  final String locationLabel;
   final ValueChanged<String> onSearchChanged;
   final TextEditingController searchController;
 
   const _Header({
     required this.userName,
+    required this.locationLabel,
     required this.onSearchChanged,
     required this.searchController,
   });
@@ -207,13 +251,7 @@ class _Header extends StatelessWidget {
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(bottom: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(
-            color: Color(0x14000000),
-            blurRadius: 12,
-            offset: Offset(0, 4),
-          ),
-        ],
+        boxShadow: [BoxShadow(color: Color(0x14000000), blurRadius: 12, offset: Offset(0, 4))],
       ),
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 20),
       child: Column(
@@ -225,19 +263,12 @@ class _Header extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      'Bonjour, $userName 👋',
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
+                    Text('Bonjour, $userName', style: Theme.of(context).textTheme.headlineMedium),
                     const SizedBox(height: 6),
                     TextButton.icon(
                       onPressed: () {},
-                      icon: const Icon(
-                        Icons.location_on_outlined,
-                        size: 16,
-                        color: AppTheme.mutedForeground,
-                      ),
-                      label: const Text('Lomé, Togo'),
+                      icon: const Icon(Icons.location_on_outlined, size: 16, color: AppTheme.mutedForeground),
+                      label: Text(locationLabel),
                       style: TextButton.styleFrom(
                         foregroundColor: AppTheme.mutedForeground,
                         padding: EdgeInsets.zero,
@@ -254,9 +285,9 @@ class _Header extends StatelessWidget {
           TextField(
             controller: searchController,
             onChanged: onSearchChanged,
-            decoration: InputDecoration(
+            decoration: const InputDecoration(
               hintText: 'Rechercher un panier ou commerce',
-              prefixIcon: const Icon(Icons.search),
+              prefixIcon: Icon(Icons.search),
               filled: true,
               fillColor: AppTheme.background,
             ),
@@ -280,13 +311,10 @@ class _BasketCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final status = _statusLabel();
-    final statusColor = _statusColor();
+    final isUnavailable = _isUnavailable(basket);
+    final unavailableLabel = _unavailableLabel(basket);
     final savings = basket.originalPrice > 0
-        ? (((basket.originalPrice - basket.discountedPrice) /
-                      basket.originalPrice) *
-                  100)
-              .round()
+        ? (((basket.originalPrice - basket.discountedPrice) / basket.originalPrice) * 100).round()
         : 0;
 
     return Padding(
@@ -297,174 +325,155 @@ class _BasketCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(20),
           side: const BorderSide(color: AppTheme.border),
         ),
-        elevation: 0,
         clipBehavior: Clip.antiAlias,
         child: InkWell(
           onTap: onTap,
           child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Stack(
-              children: [
-                SizedBox(height: 160, width: double.infinity, child: _image()),
-                Positioned(
-                  top: 8,
-                  right: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 10,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: statusColor.withOpacity(0.12),
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      status,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: statusColor,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                height: 160,
+                width: double.infinity,
+                child: _image(
+                  isUnavailable: isUnavailable,
+                  label: unavailableLabel,
+                  savings: savings,
                 ),
-                Positioned(
-                  top: 8,
-                  left: 8,
-                  child: Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(999),
-                    ),
-                    child: Text(
-                      '-$savings%',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            Padding(
-              padding: const EdgeInsets.all(14.0),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    basket.title,
-                    style: Theme.of(context).textTheme.titleMedium,
-                  ),
-                  const SizedBox(height: 4),
-                  if (basket.merchant?.businessName != null)
-                    Text(
-                      basket.merchant!.businessName!,
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        color: AppTheme.mutedForeground,
-                      ),
-                    ),
-                  const SizedBox(height: 8),
-                  Row(
-                    children: [
-                      if (basket.distanceKm != null) ...[
-                        const Icon(
-                          Icons.location_on_outlined,
-                          size: 14,
-                          color: AppTheme.mutedForeground,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${basket.distanceKm!.toStringAsFixed(1)} km',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.mutedForeground),
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-                      if (basket.pickupTimeStart != null &&
-                          basket.pickupTimeEnd != null) ...[
-                        const Icon(
-                          Icons.schedule,
-                          size: 14,
-                          color: AppTheme.mutedForeground,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${_time(basket.pickupTimeStart!)} - ${_time(basket.pickupTimeEnd!)}',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: AppTheme.mutedForeground),
-                        ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 10),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          Text(
-                            '${basket.originalPrice} F',
-                            style: Theme.of(context).textTheme.bodySmall
-                                ?.copyWith(
-                                  color: Colors.grey,
-                                  decoration: TextDecoration.lineThrough,
-                                ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            '${basket.discountedPrice} F',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(color: AppTheme.primary),
-                          ),
-                        ],
-                      ),
-                      ElevatedButton(
-                        onPressed: onReserve,
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 10,
-                          ),
-                          shape: const StadiumBorder(),
-                        ),
-                        child: const Text('Réserver'),
-                      ),
-                    ],
-                  ),
-                ],
               ),
-            ),
-          ],
+              Padding(
+                padding: const EdgeInsets.all(14.0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(basket.title, style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    if (isUnavailable)
+                      Container(
+                        margin: const EdgeInsets.only(bottom: 6),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppTheme.destructive.withOpacity(0.12),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Text(
+                          unavailableLabel,
+                          style: const TextStyle(color: AppTheme.destructive, fontSize: 12, fontWeight: FontWeight.w600),
+                        ),
+                      ),
+                    if (basket.merchant?.businessName != null)
+                      Text(
+                        basket.merchant!.businessName!,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        if (basket.distanceKm != null) ...[
+                          const Icon(Icons.location_on_outlined, size: 14, color: AppTheme.mutedForeground),
+                          const SizedBox(width: 4),
+                          Text(
+                            '${basket.distanceKm!.toStringAsFixed(1)} km',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground),
+                          ),
+                          const SizedBox(width: 12),
+                        ],
+                        if (basket.pickupTimeStart != null && basket.pickupTimeEnd != null)
+                          Text(
+                            '${_time(basket.pickupTimeStart!)} - ${_time(basket.pickupTimeEnd!)}',
+                            style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Text(
+                              '${basket.originalPrice} F',
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.grey,
+                                    decoration: TextDecoration.lineThrough,
+                                  ),
+                            ),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${basket.discountedPrice} F',
+                              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.primary),
+                            ),
+                            const SizedBox(width: 8),
+                          ],
+                        ),
+                        ElevatedButton(
+                          onPressed: isUnavailable ? null : onReserve,
+                          style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
+                          child: Text(isUnavailable ? 'Indisponible' : 'Reserver'),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _image() {
-    if (basket.photoURL == null || basket.photoURL!.isEmpty) {
-      return Container(
-        color: AppTheme.background,
-        child: const Icon(
-          Icons.shopping_basket,
-          color: AppTheme.mutedForeground,
-          size: 40,
+  Widget _image({required bool isUnavailable, required String label, required int savings}) {
+    final image = basket.photoURL == null || basket.photoURL!.isEmpty
+        ? Container(
+            color: AppTheme.background,
+            child: const Icon(Icons.shopping_basket, color: AppTheme.mutedForeground, size: 40),
+          )
+        : Image.network(
+            basket.photoURL!,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+          );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        image,
+        Positioned(
+          top: 10,
+          right: 10,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(999),
+              boxShadow: const [
+                BoxShadow(color: Color(0x14000000), blurRadius: 6, offset: Offset(0, 3)),
+              ],
+            ),
+            child: Text(
+              '-$savings%',
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+          ),
         ),
-      );
-    }
-    return ClipRRect(
-      child: Image.network(
-        basket.photoURL!,
-        width: double.infinity,
-        height: double.infinity,
-        fit: BoxFit.cover,
-      ),
+        if (isUnavailable) Container(color: Colors.black.withOpacity(0.45)),
+        if (isUnavailable)
+          Align(
+            alignment: Alignment.center,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(999),
+              ),
+              child: Text(
+                label,
+                style: const TextStyle(color: AppTheme.destructive, fontWeight: FontWeight.w700),
+              ),
+            ),
+          ),
+      ],
     );
   }
 
@@ -474,21 +483,19 @@ class _BasketCard extends StatelessWidget {
     return '$h:$m';
   }
 
-  String _statusLabel() {
+  bool _isUnavailable(BasketSummary basket) {
     final status = (basket.status ?? 'AVAILABLE').toUpperCase();
-    final qty = basket.availableQuantity ?? 0;
-    if (status == 'SOLD_OUT') return 'Épuisé';
-    if (status == 'EXPIRED') return 'Expiré';
-    if (qty > 0 && qty <= 3) return 'Derniers paniers';
-    return 'Disponible';
+    if (status != 'AVAILABLE') return true;
+    if ((basket.availableQuantity ?? 0) <= 0) return true;
+    if (basket.pickupTimeEnd != null && basket.pickupTimeEnd!.isBefore(DateTime.now())) return true;
+    return false;
   }
 
-  Color _statusColor() {
+  String _unavailableLabel(BasketSummary basket) {
     final status = (basket.status ?? 'AVAILABLE').toUpperCase();
-    final qty = basket.availableQuantity ?? 0;
-    if (status == 'SOLD_OUT' || status == 'EXPIRED')
-      return AppTheme.destructive;
-    if (qty > 0 && qty <= 3) return AppTheme.secondary;
-    return AppTheme.success;
+    if (status == 'SOLD_OUT' || (basket.availableQuantity ?? 0) <= 0) return 'Epuise';
+    if (status == 'EXPIRED') return 'Termine';
+    if (basket.pickupTimeEnd != null && basket.pickupTimeEnd!.isBefore(DateTime.now())) return 'Termine';
+    return 'Indisponible';
   }
 }

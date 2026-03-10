@@ -97,7 +97,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Accédez à votre compte SauvePanier',
+              'Accédez à votre compte MealFlavor',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),

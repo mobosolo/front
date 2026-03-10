@@ -97,7 +97,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
                 ),
                 const SizedBox(height: 24),
                 const Text(
-                  'SauvePanier',
+                  'MealFlavor',
                   style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: Colors.white),
                 ),
                 const SizedBox(height: 8),

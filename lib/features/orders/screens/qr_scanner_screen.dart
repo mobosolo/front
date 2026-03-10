@@ -1,9 +1,10 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:front/features/orders/providers/order_providers.dart';
+import 'package:front/core/widgets/bottom_nav.dart';
 
 class QrScannerScreen extends ConsumerStatefulWidget {
   const QrScannerScreen({super.key});
@@ -13,7 +14,24 @@ class QrScannerScreen extends ConsumerStatefulWidget {
 }
 
 class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
+  late final MobileScannerController _scannerController;
   bool _isScanning = true;
+  bool _isProcessing = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scannerController = MobileScannerController(
+      detectionSpeed: DetectionSpeed.noDuplicates,
+      returnImage: false,
+    );
+  }
+
+  @override
+  void dispose() {
+    _scannerController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,26 +39,24 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
       appBar: AppBar(
         title: const Text('Scanner le QR Code'),
       ),
+      bottomNavigationBar: const BottomNav(activeTab: 'scan', role: 'MERCHANT'),
       body: Stack(
         children: [
           MobileScanner(
-            controller: MobileScannerController(
-              detectionSpeed: DetectionSpeed.normal,
-              detectionTimeoutMs: 1000,
-              returnImage: false,
-            ),
+            controller: _scannerController,
             onDetect: (capture) async {
-              if (_isScanning) {
-                final List<Barcode> barcodes = capture.barcodes;
-                for (final barcode in barcodes) {
-                  final String? qrCode = barcode.rawValue;
-                  if (qrCode != null) {
-                    setState(() {
-                      _isScanning = false; // Stop scanning after first detection
-                    });
-                    await _validatePickup(qrCode);
-                    break; // Process only the first QR code
-                  }
+              if (!_isScanning || _isProcessing) return;
+
+              final List<Barcode> barcodes = capture.barcodes;
+              for (final barcode in barcodes) {
+                final String? qrCode = barcode.rawValue;
+                if (qrCode != null && qrCode.isNotEmpty) {
+                  setState(() {
+                    _isScanning = false;
+                    _isProcessing = true;
+                  });
+                  await _validatePickup(qrCode);
+                  break;
                 }
               }
             },
@@ -60,7 +76,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
                     : const CircularProgressIndicator(color: Colors.white),
               ),
             ),
-          )
+          ),
         ],
       ),
     );
@@ -72,10 +88,11 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
       if (payload == null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('QR code invalide. Veuillez réessayer.')),
+            const SnackBar(content: Text('QR code invalide. Veuillez reessayer.')),
           );
           setState(() {
             _isScanning = true;
+            _isProcessing = false;
           });
         }
         return;
@@ -87,10 +104,11 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
       await ref.read(orderServiceProvider).validatePickup(orderId, qrCode);
 
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Commande validée avec succès!')),
-        );
-        context.go('/merchant-sales'); // Go back to sales history after validation
+        if (context.canPop()) {
+          context.pop('validated');
+        } else {
+          context.go('/merchant-sales?tab=completed&validated=1');
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -98,7 +116,8 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
           SnackBar(content: Text('Erreur lors de la validation: ${e.toString()}')),
         );
         setState(() {
-          _isScanning = true; // Resume scanning on error
+          _isScanning = true;
+          _isProcessing = false;
         });
       }
     }
@@ -129,5 +148,4 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
 
     return null;
   }
-
 }

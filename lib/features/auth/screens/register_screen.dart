@@ -125,7 +125,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              "Rejoignez SauvePanier aujourd'hui",
+              "Rejoignez MealFlavor aujourd'hui",
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),

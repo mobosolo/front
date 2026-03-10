@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
@@ -15,7 +15,7 @@ class ProfileScreen extends ConsumerWidget {
 
     if (user == null) {
       return const Scaffold(
-        body: Center(child: Text('Utilisateur non connecté')),
+        body: Center(child: Text('Utilisateur non connecte')),
       );
     }
 
@@ -30,8 +30,6 @@ class ProfileScreen extends ConsumerWidget {
             _contactInfo(context, user.email, user.phoneNumber),
             const SizedBox(height: 8),
             _menuItems(context),
-            const SizedBox(height: 12),
-            _switchRole(context),
             const SizedBox(height: 8),
             _logout(context, ref),
             const SizedBox(height: 24),
@@ -75,7 +73,7 @@ class ProfileScreen extends ConsumerWidget {
                 const SizedBox(height: 12),
                 Text(name, style: const TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
-                const Text('Client SauvePanier', style: TextStyle(color: Colors.white70)),
+                const Text('Client MealFlavor', style: TextStyle(color: Colors.white70)),
               ],
             ),
           ),
@@ -104,7 +102,7 @@ class ProfileScreen extends ConsumerWidget {
               children: [
                 _infoRow(Icons.mail_outline, 'Email', email, hasBorder: phone != null && phone.isNotEmpty),
                 if (phone != null && phone.isNotEmpty)
-                  _infoRow(Icons.phone_outlined, 'Téléphone', phone),
+                  _infoRow(Icons.phone_outlined, 'Telephone', phone),
               ],
             ),
           ),
@@ -148,8 +146,7 @@ class ProfileScreen extends ConsumerWidget {
         ),
         child: Column(
           children: [
-            _menuRow(Icons.shopping_bag_outlined, 'Mes commandes', () => context.push('/client-orders'), hasBorder: true),
-            _menuRow(Icons.settings_outlined, 'Paramètres', () {}),
+            _menuRow(Icons.shopping_bag_outlined, 'Mes commandes', () => context.push('/client-orders')),
           ],
         ),
       ),
@@ -175,26 +172,6 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _switchRole(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 24.0),
-      child: SizedBox(
-        width: double.infinity,
-        child: OutlinedButton(
-          onPressed: () {},
-          style: OutlinedButton.styleFrom(
-            backgroundColor: AppTheme.secondary.withOpacity(0.08),
-            foregroundColor: AppTheme.secondary,
-            side: BorderSide.none,
-            shape: const StadiumBorder(),
-            padding: const EdgeInsets.symmetric(vertical: 14),
-          ),
-          child: const Text('Passer en mode commerçant'),
-        ),
-      ),
-    );
-  }
-
   Widget _logout(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
@@ -207,7 +184,7 @@ class ProfileScreen extends ConsumerWidget {
             context.go('/login');
           },
           icon: const Icon(Icons.logout, color: AppTheme.destructive),
-          label: const Text('Déconnexion', style: TextStyle(color: AppTheme.destructive)),
+          label: const Text('Deconnexion', style: TextStyle(color: AppTheme.destructive)),
           style: OutlinedButton.styleFrom(
             side: BorderSide.none,
             shape: const StadiumBorder(),

@@ -1,5 +1,6 @@
 import 'package:dio/dio.dart';
 import 'package:front/features/merchant/models/merchant_model.dart';
+import 'package:front/features/merchant/models/merchant_stats_model.dart';
 
 class MerchantService {
   final Dio _dio;
@@ -74,6 +75,16 @@ class MerchantService {
       return Merchant.fromJson(response.data);
     } on DioException catch (e) {
       print('DioError updating merchant profile: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  Future<MerchantDailyStats> getDailyStats() async {
+    try {
+      final response = await _dio.get('/merchants/stats');
+      return MerchantDailyStats.fromJson(response.data);
+    } on DioException catch (e) {
+      print('DioError fetching merchant stats: ${e.response?.data}');
       rethrow;
     }
   }

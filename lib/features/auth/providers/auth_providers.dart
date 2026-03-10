@@ -6,6 +6,8 @@ import 'package:front/features/merchant/providers/merchant_providers.dart'; // I
 import 'package:front/features/merchant/services/merchant_service.dart'; // Import merchant service
 import 'package:front/core/providers/notification_providers.dart'; // Import notification service provider
 import 'package:front/core/services/notification_service.dart'; // Import notification service
+import 'package:front/core/providers/location_providers.dart';
+import 'package:front/core/services/location_service.dart';
 
 // Provider for the AuthService
 final authServiceProvider = Provider<AuthService>((ref) {
@@ -33,8 +35,9 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
   final AuthService _authService;
   final MerchantService _merchantService; // Inject MerchantService
   final NotificationService _notificationService; // Inject NotificationService
+  final LocationService _locationService;
 
-  AuthStateNotifier(this._authService, this._merchantService, this._notificationService) : super(AuthState());
+  AuthStateNotifier(this._authService, this._merchantService, this._notificationService, this._locationService) : super(AuthState());
 
   Future<void> _handlePostAuthActions() async {
     // Post-auth side effects must never break login/register flow.
@@ -46,6 +49,28 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       }
     } catch (e) {
       print('Post-auth notification setup failed: $e');
+    }
+  }
+
+  Future<User> _syncCurrentLocation(User user) async {
+    try {
+      final location = await _locationService.getCurrentLocation();
+      if (location == null) {
+        return user;
+      }
+
+      await _authService.updateProfile(
+        latitude: location.latitude,
+        longitude: location.longitude,
+      );
+
+      return user.copyWith(
+        latitude: location.latitude,
+        longitude: location.longitude,
+      );
+    } catch (e) {
+      print('Location sync failed: $e');
+      return user;
     }
   }
 
@@ -65,6 +90,8 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
       }
       state = AuthState(user: user, isAuthenticated: true);
       await _handlePostAuthActions();
+      final syncedUser = await _syncCurrentLocation(user);
+      state = AuthState(user: syncedUser, isAuthenticated: true);
     } catch (e) {
       state = AuthState(user: null, isAuthenticated: false);
     }
@@ -84,6 +111,8 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
     state = AuthState(user: user, isAuthenticated: true);
     await _handlePostAuthActions();
+    final syncedUser = await _syncCurrentLocation(user);
+    state = AuthState(user: syncedUser, isAuthenticated: true);
   }
 
   Future<void> register(String name, String email, String password, String phone, String role) async {
@@ -104,6 +133,8 @@ class AuthStateNotifier extends StateNotifier<AuthState> {
     }
     state = AuthState(user: user, isAuthenticated: true);
     await _handlePostAuthActions();
+    final syncedUser = await _syncCurrentLocation(user);
+    state = AuthState(user: syncedUser, isAuthenticated: true);
   }
 
   void logout() {
@@ -117,5 +148,6 @@ final authStateProvider = StateNotifierProvider<AuthStateNotifier, AuthState>((r
   final authService = ref.watch(authServiceProvider);
   final merchantService = ref.watch(merchantServiceProvider); // Watch merchant service
   final notificationService = ref.watch(notificationServiceProvider); // Watch notification service
-  return AuthStateNotifier(authService, merchantService, notificationService);
+  final locationService = ref.watch(locationServiceProvider);
+  return AuthStateNotifier(authService, merchantService, notificationService, locationService);
 });

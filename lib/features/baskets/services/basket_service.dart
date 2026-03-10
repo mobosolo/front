@@ -57,19 +57,26 @@ class BasketService {
     int? maxPrice,
   }) async {
     try {
+      final params = <String, dynamic>{};
+      if (lat != null && lon != null && radius != null) {
+        params['lat'] = lat;
+        params['lon'] = lon;
+        params['radius'] = radius;
+      }
+      if (category != null && category.isNotEmpty) {
+        params['category'] = category;
+      }
+      if (maxPrice != null) {
+        params['maxPrice'] = maxPrice;
+      }
+
       final response = await _dio.get(
         '/baskets',
-        queryParameters: {
-          'lat': lat,
-          'lon': lon,
-          'radius': radius,
-          'category': category,
-          'maxPrice': maxPrice,
-        },
+        queryParameters: params,
       );
       return (response.data as List).map((json) => BasketSummary.fromJson(json)).toList();
     } on DioException catch (e) {
-      print('DioError fetching baskets: ${e.response?.data}');
+      print('DioError fetching baskets: type=${e.type}, message=${e.message}, data=${e.response?.data}');
       rethrow;
     }
   }

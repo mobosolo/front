@@ -7,7 +7,14 @@ import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
 
 class MerchantSalesHistoryScreen extends ConsumerStatefulWidget {
-  const MerchantSalesHistoryScreen({super.key});
+  final String? initialTab;
+  final bool showValidatedMessage;
+
+  const MerchantSalesHistoryScreen({
+    super.key,
+    this.initialTab,
+    this.showValidatedMessage = false,
+  });
 
   @override
   ConsumerState<MerchantSalesHistoryScreen> createState() => _MerchantSalesHistoryScreenState();
@@ -17,11 +24,21 @@ class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistor
   List<Order> _orders = [];
   bool _isLoading = true;
   String? _errorMessage;
+  late String _activeTab;
 
   @override
   void initState() {
     super.initState();
+    _activeTab = widget.initialTab == 'completed' ? 'completed' : 'active';
     _fetchMerchantOrders();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (widget.showValidatedMessage && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Commande validee. Retrouvez-la dans Terminees.')),
+        );
+      }
+    });
   }
 
   Future<void> _fetchMerchantOrders() async {
@@ -35,7 +52,7 @@ class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistor
     } catch (e) {
       if (mounted) {
         setState(() {
-          _errorMessage = "Erreur lors du chargement des commandes: ${e.toString()}";
+          _errorMessage = 'Erreur lors du chargement des commandes: ${e.toString()}';
         });
       }
     } finally {
@@ -47,8 +64,14 @@ class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistor
     return _orders.where((o) => o.orderStatus.toUpperCase() == 'RESERVED').toList();
   }
 
+  List<Order> get _completedOrders {
+    return _orders.where((o) => o.orderStatus.toUpperCase() == 'PICKED_UP').toList();
+  }
+
   @override
   Widget build(BuildContext context) {
+    final ordersToShow = _activeTab == 'active' ? _activeOrders : _completedOrders;
+
     return Scaffold(
       backgroundColor: AppTheme.background,
       bottomNavigationBar: const BottomNav(activeTab: 'orders', role: 'MERCHANT'),
@@ -67,7 +90,7 @@ class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistor
                 padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 16),
                 child: Center(child: Text(_errorMessage!)),
               )
-            else if (_activeOrders.isEmpty)
+            else if (ordersToShow.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24),
                 child: _emptyState(),
@@ -76,10 +99,21 @@ class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistor
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 24.0),
                 child: Column(
-                  children: _activeOrders
+                  children: ordersToShow
                       .map((order) => _OrderCard(
                             order: order,
-                            onScan: () => context.push('/qr-scanner'),
+                            isCompleted: _activeTab == 'completed',
+                            onScan: () async {
+                              final result = await context.push('/qr-scanner');
+                              if (!mounted) return;
+                              if (result == 'validated') {
+                                setState(() => _activeTab = 'completed');
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Commande validee. Retrouvez-la dans Terminees.')),
+                                );
+                                await _fetchMerchantOrders();
+                              }
+                            },
                           ))
                       .toList(),
                 ),
@@ -101,23 +135,53 @@ class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistor
           Text('Commandes', style: Theme.of(context).textTheme.headlineMedium),
           const SizedBox(height: 6),
           Text(
-            'Gérez les réservations de vos paniers',
+            'Gerez les reservations de vos paniers',
             style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+          ),
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              _tabChip('active', 'Actives'),
+              const SizedBox(width: 8),
+              _tabChip('completed', 'Terminees'),
+            ],
           ),
         ],
       ),
     );
   }
 
+  Widget _tabChip(String id, String label) {
+    final bool selected = _activeTab == id;
+    return InkWell(
+      onTap: () => setState(() => _activeTab = id),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: selected ? AppTheme.primary : AppTheme.background,
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            color: selected ? Colors.white : AppTheme.mutedForeground,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ),
+    );
+  }
+
   Widget _emptyState() {
+    final label = _activeTab == 'active' ? 'active' : 'terminees';
     return Column(
       children: [
         const Icon(Icons.shopping_bag_outlined, size: 48, color: AppTheme.mutedForeground),
         const SizedBox(height: 12),
-        const Text('Aucune commande active'),
+        const Text('Aucune commande'),
         const SizedBox(height: 6),
         Text(
-          "Les nouvelles réservations apparaîtront ici.",
+          "Aucune commande $label.",
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
           textAlign: TextAlign.center,
         ),
@@ -128,9 +192,14 @@ class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistor
 
 class _OrderCard extends StatelessWidget {
   final Order order;
+  final bool isCompleted;
   final VoidCallback onScan;
 
-  const _OrderCard({required this.order, required this.onScan});
+  const _OrderCard({
+    required this.order,
+    required this.isCompleted,
+    required this.onScan,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -151,8 +220,10 @@ class _OrderCard extends StatelessWidget {
             children: [
               const Icon(Icons.person_outline, color: AppTheme.mutedForeground, size: 18),
               const SizedBox(width: 6),
-              Text(order.user?.displayName ?? 'Client',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground)),
+              Text(
+                order.user?.displayName ?? 'Client',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(color: AppTheme.mutedForeground),
+              ),
             ],
           ),
           const SizedBox(height: 6),
@@ -175,20 +246,32 @@ class _OrderCard extends StatelessWidget {
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
-                  color: AppTheme.primary.withOpacity(0.12),
+                  color: (isCompleted ? AppTheme.success : AppTheme.primary).withOpacity(0.12),
                   borderRadius: BorderRadius.circular(999),
                 ),
-                child: const Text(
-                  'Réservé',
-                  style: TextStyle(fontSize: 12, color: AppTheme.primary, fontWeight: FontWeight.w600),
+                child: Text(
+                  isCompleted ? 'Terminee' : 'Reserve',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: isCompleted ? AppTheme.success : AppTheme.primary,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
               ),
-              ElevatedButton.icon(
-                onPressed: onScan,
-                icon: const Icon(Icons.qr_code, size: 18),
-                label: const Text('Scanner QR'),
-                style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
-              ),
+              if (!isCompleted)
+                ElevatedButton.icon(
+                  onPressed: onScan,
+                  icon: const Icon(Icons.qr_code, size: 18),
+                  label: const Text('Scanner QR'),
+                  style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
+                )
+              else
+                Text(
+                  order.pickedUpAt != null
+                      ? 'Retiree a ${order.pickedUpAt!.hour.toString().padLeft(2, '0')}:${order.pickedUpAt!.minute.toString().padLeft(2, '0')}'
+                      : 'Retiree',
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground),
+                ),
             ],
           ),
         ],
@@ -199,7 +282,7 @@ class _OrderCard extends StatelessWidget {
   String _pickupText() {
     final start = order.basket?.pickupTimeStart;
     final end = order.basket?.pickupTimeEnd;
-    if (start == null || end == null) return 'Horaire: —';
+    if (start == null || end == null) return 'Horaire: -';
     return 'Retrait: ${start.hour.toString().padLeft(2, '0')}:${start.minute.toString().padLeft(2, '0')} - '
         '${end.hour.toString().padLeft(2, '0')}:${end.minute.toString().padLeft(2, '0')}';
   }

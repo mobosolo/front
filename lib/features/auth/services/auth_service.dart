@@ -45,12 +45,20 @@ class AuthService {
     }
   }
 
-  Future<Map<String, dynamic>> updateProfile({String? displayName, String? phoneNumber}) async {
+  Future<Map<String, dynamic>> updateProfile({
+    String? displayName,
+    String? phoneNumber,
+    double? latitude,
+    double? longitude,
+  }) async {
     try {
-      final response = await _dio.put('/auth/profile', data: {
-        'displayName': displayName,
-        'phoneNumber': phoneNumber,
-      });
+      final payload = <String, dynamic>{};
+      if (displayName != null) payload['displayName'] = displayName;
+      if (phoneNumber != null) payload['phoneNumber'] = phoneNumber;
+      if (latitude != null) payload['latitude'] = latitude;
+      if (longitude != null) payload['longitude'] = longitude;
+
+      final response = await _dio.put('/auth/profile', data: payload);
       return response.data;
     } on DioException catch (e) {
       print('DioError updating profile: ${e.response?.data}');
@@ -65,6 +73,31 @@ class AuthService {
       });
     } on DioException catch (e) {
       print('DioError sending FCM token: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  Future<Map<String, dynamic>> requestPasswordReset(String email) async {
+    try {
+      final response = await _dio.post('/auth/forgot-password', data: {
+        'email': email,
+      });
+      return response.data;
+    } on DioException catch (e) {
+      print('DioError requesting password reset: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  Future<void> resetPassword(String email, String token, String newPassword) async {
+    try {
+      await _dio.post('/auth/reset-password', data: {
+        'email': email,
+        'token': token,
+        'newPassword': newPassword,
+      });
+    } on DioException catch (e) {
+      print('DioError resetting password: ${e.response?.data}');
       rethrow;
     }
   }

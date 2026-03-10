@@ -180,7 +180,7 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
           const SizedBox(height: 12),
           _methodTile('FLOOZ', 'Flooz', Icons.credit_card),
           const SizedBox(height: 10),
-          _methodTile('TMONEY', 'MTN MoMo', Icons.credit_card),
+          _methodTile('TMONEY', 'Tmoney', Icons.credit_card),
           const SizedBox(height: 10),
           _methodTile('CASH', 'Paiement au retrait', Icons.payments_outlined),
         ],
