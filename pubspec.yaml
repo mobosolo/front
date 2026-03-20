@@ -30,6 +30,10 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+
+
+  http: ^1.1.0
+  flutter_stripe: ^12.4.0 
   dio: ^5.4.0           # Pour les requêtes HTTP vers ton backend
   flutter_riverpod: ^2.4.9 # Pour la gestion d'état (ou Provider selon ta préférence)
   go_router: ^13.1.0    # Pour la navigation
@@ -44,6 +48,7 @@ dependencies:
   firebase_core: ^2.25.3    # For Firebase core functionality
   firebase_messaging: ^14.7.19 # For Firebase Cloud Messaging
   url_launcher: ^6.2.4      # For launching URLs (e.g., Flutterwave payment)
+
 
 
 

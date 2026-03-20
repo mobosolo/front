@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 import 'package:front/features/orders/providers/order_providers.dart';
 import 'package:front/core/theme/app_theme.dart';
+import 'package:front/core/services/stripe_service.dart'; 
 
 class PaymentMethodSelectionScreen extends ConsumerStatefulWidget {
   final String basketId;
@@ -28,13 +29,34 @@ class PaymentMethodSelectionScreen extends ConsumerStatefulWidget {
 }
 
 class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSelectionScreen> {
-  String _selectedPaymentMethod = 'FLOOZ';
+  // Par défaut sur STRIPE pour tester
+  String _selectedPaymentMethod = 'STRIPE'; 
   bool _isLoading = false;
 
   Future<void> _processPayment() async {
     setState(() => _isLoading = true);
 
     try {
+      // --- LOGIQUE SPECIFIQUE STRIPE ---
+      if (_selectedPaymentMethod == 'STRIPE') {
+        // On convertit le prix en centimes (Stripe attend des entiers)
+        // ex: 2500 F devient "2500" pour Stripe
+        await StripeService.initPayment(widget.price.toString(), context);
+        
+        // Si le paiement Stripe réussit, on crée la commande dans ton backend
+        // Note: Idéalement, ton backend devrait vérifier le paiement via un webhook
+        final orderService = ref.read(orderServiceProvider);
+        final response = await orderService.createOrder(
+          basketId: widget.basketId,
+          paymentMethod: 'STRIPE',
+        );
+        
+        final orderId = response['order']['id'];
+        if (mounted) context.pushReplacement('/order-confirmation/$orderId');
+        return;
+      }
+
+      // --- LOGIQUE EXISTANTE (FLOOZ, TMONEY, CASH) ---
       final orderService = ref.read(orderServiceProvider);
       final response = await orderService.createOrder(
         basketId: widget.basketId,
@@ -57,13 +79,12 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Aucune URL de paiement fournie.')),
           );
-          context.pop();
         }
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Erreur lors de la création de la commande: ${e.toString()}')),
+          SnackBar(content: Text('Erreur : ${e.toString()}')),
         );
       }
     } finally {
@@ -156,7 +177,7 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
             style: Theme.of(context)
                 .textTheme
                 .bodyMedium
-                ?.copyWith(color: highlight ? AppTheme.primary : AppTheme.foreground),
+                ?.copyWith(color: highlight ? AppTheme.primary : AppTheme.foreground, fontWeight: highlight ? FontWeight.bold : FontWeight.normal),
           ),
         ],
       ),
@@ -178,9 +199,12 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
         children: [
           Text('Méthode de paiement', style: Theme.of(context).textTheme.titleMedium),
           const SizedBox(height: 12),
-          _methodTile('FLOOZ', 'Flooz', Icons.credit_card),
+          // AJOUT DE STRIPE ICI
+          _methodTile('STRIPE', 'Carte Bancaire (Stripe)', Icons.credit_card),
           const SizedBox(height: 10),
-          _methodTile('TMONEY', 'Tmoney', Icons.credit_card),
+          _methodTile('FLOOZ', 'Flooz', Icons.phone_android),
+          const SizedBox(height: 10),
+          _methodTile('TMONEY', 'Tmoney', Icons.phone_android),
           const SizedBox(height: 10),
           _methodTile('CASH', 'Paiement au retrait', Icons.payments_outlined),
         ],
@@ -213,9 +237,9 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
                   : null,
             ),
             const SizedBox(width: 12),
-            Icon(icon, size: 20),
+            Icon(icon, size: 20, color: selected ? AppTheme.primary : Colors.grey[600]),
             const SizedBox(width: 8),
-            Expanded(child: Text(label)),
+            Expanded(child: Text(label, style: TextStyle(fontWeight: selected ? FontWeight.bold : FontWeight.normal))),
           ],
         ),
       ),
@@ -235,8 +259,11 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
             width: double.infinity,
             child: ElevatedButton(
               onPressed: _processPayment,
-              style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
-              child: const Text('Payer maintenant'),
+              style: ElevatedButton.styleFrom(
+                shape: const StadiumBorder(),
+                padding: const EdgeInsets.symmetric(vertical: 16),
+              ),
+              child: Text(_selectedPaymentMethod == 'STRIPE' ? 'Payer avec Carte' : 'Payer maintenant'),
             ),
           ),
           const SizedBox(height: 8),
@@ -260,7 +287,6 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
 
 class _LoadingSpinner extends StatelessWidget {
   final String message;
-
   const _LoadingSpinner({required this.message});
 
   @override
