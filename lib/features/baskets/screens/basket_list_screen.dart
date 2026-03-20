@@ -70,6 +70,14 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
         category: _selectedCategory,
         maxPrice: _maxPrice,
       );
+
+      if (_baskets.isEmpty && _currentLatitude != null && _currentLongitude != null) {
+        _baskets = await basketService.getBaskets(
+          category: _selectedCategory,
+          maxPrice: _maxPrice,
+        );
+        _locationLabel = 'Position indisponible (liste globale)';
+      }
     } catch (e) {
       try {
         final basketService = ref.read(basketServiceProvider);
