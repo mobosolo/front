@@ -4,7 +4,7 @@ import 'package:front/core/providers/storage_providers.dart';
 
 final dioProvider = Provider<Dio>((ref) {
   final dio = Dio(BaseOptions(
-    baseUrl: 'https://un-0ab3.onrender.com/api', // Replace with your backend URL
+    baseUrl: 'https://accessible-robin-mobosolo-c3488820.koyeb.app/api',
   ));
 
   final tokenStorageService = ref.watch(tokenStorageServiceProvider);

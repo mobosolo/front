@@ -143,4 +143,45 @@ class BasketService {
       rethrow;
     }
   }
+
+  Future<Basket> quickUpdateBasket(
+    String id, {
+    int? delta,
+    String? status,
+    int? shiftMinutes,
+  }) async {
+    try {
+      final payload = <String, dynamic>{};
+      if (delta != null) payload['delta'] = delta;
+      if (status != null) payload['status'] = status;
+      if (shiftMinutes != null) payload['shiftMinutes'] = shiftMinutes;
+
+      final response = await _dio.patch(
+        '/baskets/$id/quick',
+        data: payload,
+      );
+      final data = response.data is Map<String, dynamic> ? response.data : <String, dynamic>{};
+      final basketJson = data['basket'] is Map<String, dynamic>
+          ? data['basket'] as Map<String, dynamic>
+          : data;
+      return Basket.fromJson(basketJson);
+    } on DioException catch (e) {
+      print('DioError quick update basket: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  Future<Basket> duplicateBasket(String id) async {
+    try {
+      final response = await _dio.post('/baskets/$id/duplicate');
+      final data = response.data is Map<String, dynamic> ? response.data : <String, dynamic>{};
+      final basketJson = data['basket'] is Map<String, dynamic>
+          ? data['basket'] as Map<String, dynamic>
+          : data;
+      return Basket.fromJson(basketJson);
+    } on DioException catch (e) {
+      print('DioError duplicating basket: ${e.response?.data}');
+      rethrow;
+    }
+  }
 }

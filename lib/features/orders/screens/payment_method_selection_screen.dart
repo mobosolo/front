@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:front/features/orders/providers/order_providers.dart';
 import 'package:front/core/theme/app_theme.dart';
+import 'package:front/features/auth/providers/auth_providers.dart';
+import 'package:kkiapay_flutter_sdk/kkiapay_flutter_sdk.dart';
+import 'package:front/core/config/kkiapay_config.dart';
 
 class PaymentMethodSelectionScreen extends ConsumerStatefulWidget {
   final String basketId;
@@ -30,8 +32,9 @@ class PaymentMethodSelectionScreen extends ConsumerStatefulWidget {
 class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSelectionScreen> {
   String _selectedPaymentMethod = 'FLOOZ';
   bool _isLoading = false;
+  String? _lastPhoneInput;
 
-  Future<void> _processPayment() async {
+  Future<void> _processPayment({String? phoneInput}) async {
     setState(() => _isLoading = true);
 
     try {
@@ -42,22 +45,21 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
       );
 
       final orderId = response['order']['id'];
-      final paymentUrl = response['paymentUrl'];
 
       if (mounted) {
         if (_selectedPaymentMethod == 'CASH') {
           context.pushReplacement('/order-confirmation/$orderId');
-        } else if (paymentUrl != null) {
-          final Uri url = Uri.parse(paymentUrl);
-          if (!await launchUrl(url, mode: LaunchMode.externalApplication)) {
-            throw Exception('Could not launch $url');
-          }
-          context.pushReplacement('/order-confirmation/$orderId');
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Aucune URL de paiement fournie.')),
-          );
-          context.pop();
+          if (kkiapaySandbox) {
+            await orderService.confirmPayment(orderId);
+            if (!mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Paiement simule (sandbox).')),
+            );
+            context.pushReplacement('/order-confirmation/$orderId');
+          } else {
+            await _startKkiapay(orderId, phoneInput: phoneInput);
+          }
         }
       }
     } catch (e) {
@@ -69,6 +71,135 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
     } finally {
       if (mounted) setState(() => _isLoading = false);
     }
+  }
+
+  Future<void> _startKkiapay(String orderId, {String? phoneInput}) async {
+    if (kkiapayPublicKey.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Cle Kkiapay manquante.')),
+      );
+      return;
+    }
+
+    final user = ref.read(authStateProvider).user;
+    String phone = (phoneInput ?? '').trim();
+    if (phone.isEmpty) {
+      phone = (user?.phoneNumber ?? '').trim();
+    }
+    List<String> countries = const ['TG'];
+    if (kkiapaySandbox) {
+      // Sandbox: force a documented test number with country code.
+      phone = '22961000000';
+      countries = const ['BJ'];
+    } else if (phone.length == 8) {
+      // Togo local number -> add country code.
+      phone = '228$phone';
+      countries = const ['TG'];
+    }
+    final name = user?.displayName ?? 'Client';
+    final email = user?.email ?? '';
+
+    void callback(dynamic response, BuildContext ctx) async {
+      if (response is! Map) {
+        return;
+      }
+      final Map<String, dynamic> data = Map<String, dynamic>.from(response);
+      final String event = (data['status'] ?? data['name'] ?? data['event'] ?? '').toString();
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('KKiaPay event: $event')),
+      );
+
+      if (event == PAYMENT_SUCCESS) {
+        final transactionId =
+            data['transactionId']?.toString() ?? data['transaction_id']?.toString();
+        try {
+          await ref.read(orderServiceProvider).confirmPayment(
+                orderId,
+                transactionRef: transactionId,
+              );
+          if (!mounted) return;
+          context.pushReplacement('/order-confirmation/$orderId');
+        } catch (e) {
+          if (!mounted) return;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Paiement reussi mais confirmation impossible: ${e.toString()}')),
+          );
+        }
+      } else if (event == PAYMENT_CANCELLED || event == CLOSE_WIDGET) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Paiement annule ou ferme.')),
+        );
+      } else if (event == PAYMENT_INIT || event == PENDING_PAYMENT) {
+        // Optional: ignore intermediate events.
+        return;
+      }
+    }
+
+    final kkiapay = KKiaPay(
+      callback: callback,
+      amount: widget.price,
+      apikey: kkiapayPublicKey,
+      sandbox: kkiapaySandbox,
+      data: orderId,
+      phone: phone,
+      name: name,
+      email: email,
+      reason: 'Paiement panier ${widget.basketTitle ?? 'Panier'}',
+      countries: countries,
+      paymentMethods: const ['momo'],
+      theme: kkiapayTheme,
+    );
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => kkiapay),
+    );
+  }
+
+  void _askPhoneThenPay() {
+    final controller = TextEditingController(text: _lastPhoneInput ?? '');
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text('Paiement ${_selectedPaymentMethod == 'FLOOZ' ? 'Flooz' : 'Tmoney'}'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Entrez votre numero pour le paiement.'),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(hintText: 'Ex: 92430746'),
+            ),
+            if (kkiapaySandbox) ...[
+              const SizedBox(height: 8),
+              const Text(
+                'Mode test: le paiement sera valide automatiquement.',
+                style: TextStyle(color: AppTheme.mutedForeground, fontSize: 12),
+              ),
+            ],
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              _lastPhoneInput = controller.text.trim();
+              Navigator.pop(ctx);
+              _processPayment(phoneInput: _lastPhoneInput);
+            },
+            child: const Text('Continuer'),
+          ),
+        ],
+      ),
+    );
   }
 
   @override
@@ -234,7 +365,13 @@ class _PaymentMethodSelectionScreenState extends ConsumerState<PaymentMethodSele
           SizedBox(
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: _processPayment,
+              onPressed: () {
+                if (_selectedPaymentMethod == 'CASH') {
+                  _processPayment();
+                } else {
+                  _askPhoneThenPay();
+                }
+              },
               style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
               child: const Text('Payer maintenant'),
             ),

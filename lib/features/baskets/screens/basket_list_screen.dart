@@ -71,13 +71,6 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
         maxPrice: _maxPrice,
       );
 
-      if (_baskets.isEmpty && _currentLatitude != null && _currentLongitude != null) {
-        _baskets = await basketService.getBaskets(
-          category: _selectedCategory,
-          maxPrice: _maxPrice,
-        );
-        _locationLabel = 'Position indisponible (liste globale)';
-      }
     } catch (e) {
       try {
         final basketService = ref.read(basketServiceProvider);
@@ -355,19 +348,7 @@ class _BasketCard extends StatelessWidget {
                   children: [
                     Text(basket.title, style: Theme.of(context).textTheme.titleMedium),
                     const SizedBox(height: 4),
-                    if (isUnavailable)
-                      Container(
-                        margin: const EdgeInsets.only(bottom: 6),
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                        decoration: BoxDecoration(
-                          color: AppTheme.destructive.withOpacity(0.12),
-                          borderRadius: BorderRadius.circular(999),
-                        ),
-                        child: Text(
-                          unavailableLabel,
-                          style: const TextStyle(color: AppTheme.destructive, fontSize: 12, fontWeight: FontWeight.w600),
-                        ),
-                      ),
+                    if (!isUnavailable) _statusBadge(isUnavailable, unavailableLabel),
                     if (basket.merchant?.businessName != null)
                       Text(
                         basket.merchant!.businessName!,
@@ -505,5 +486,22 @@ class _BasketCard extends StatelessWidget {
     if (status == 'EXPIRED') return 'Termine';
     if (basket.pickupTimeEnd != null && basket.pickupTimeEnd!.isBefore(DateTime.now())) return 'Termine';
     return 'Indisponible';
+  }
+
+  Widget _statusBadge(bool isUnavailable, String label) {
+    final Color color = isUnavailable ? AppTheme.destructive : AppTheme.success;
+    final String text = isUnavailable ? label : 'Disponible';
+    return Container(
+      margin: const EdgeInsets.only(bottom: 6),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w600),
+      ),
+    );
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
+import 'package:dio/dio.dart';
 import 'package:front/core/providers/storage_providers.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -16,6 +17,28 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   bool _isLoading = false;
+  bool _obscurePassword = true;
+
+  String _extractErrorMessage(Object e) {
+    if (e is DioException) {
+      final status = e.response?.statusCode;
+      final data = e.response?.data;
+      if (status == 401) {
+        return 'Identifiants invalides. Verifiez email et mot de passe.';
+      }
+      if (data is Map<String, dynamic>) {
+        final msg = data['message'];
+        if (msg is String && msg.trim().isNotEmpty) return msg;
+        final errors = data['errors'];
+        if (errors is List && errors.isNotEmpty && errors.first is Map<String, dynamic>) {
+          final first = errors.first as Map<String, dynamic>;
+          final fieldMsg = first['msg'];
+          if (fieldMsg is String && fieldMsg.trim().isNotEmpty) return fieldMsg;
+        }
+      }
+    }
+    return 'Erreur de connexion. Verifiez vos informations.';
+  }
 
   @override
   void dispose() {
@@ -45,11 +68,11 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           await authNotifier.loadUser();
           final isAuthenticated = ref.read(authStateProvider).isAuthenticated;
           if (!isAuthenticated) {
-            throw Exception('Session invalide. Veuillez réessayer.');
+            throw Exception('Session invalide. Veuillez reessayer.');
           }
 
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Connexion réussie!')),
+            const SnackBar(content: Text('Connexion reussie!')),
           );
           context.go('/home');
         } else {
@@ -58,7 +81,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       } catch (e) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Erreur de connexion: ${e.toString()}')),
+            SnackBar(content: Text(_extractErrorMessage(e))),
           );
         }
       } finally {
@@ -97,7 +120,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
             ),
             const SizedBox(height: 6),
             Text(
-              'Accédez à votre compte MealFlavor',
+              'Accedez a votre compte MealFlavor',
               style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: Colors.grey[600]),
             ),
             const SizedBox(height: 24),
@@ -127,11 +150,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _passwordController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: '••••••••',
-                      prefixIcon: Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        icon: Icon(
+                          _obscurePassword ? Icons.visibility_off : Icons.visibility,
+                        ),
+                      ),
                     ),
-                    obscureText: true,
+                    obscureText: _obscurePassword,
                     validator: (value) {
                       if (value == null || value.isEmpty) {
                         return 'Veuillez entrer votre mot de passe';
@@ -144,7 +173,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                     alignment: Alignment.centerLeft,
                     child: TextButton(
                       onPressed: () => context.push('/forgot-password'),
-                      child: const Text('Mot de passe oublié ?'),
+                      child: const Text('Mot de passe oublie ?'),
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -169,7 +198,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 ),
                 TextButton(
                   onPressed: () => context.go('/register'),
-                  child: const Text('Créer un compte'),
+                  child: const Text('Creer un compte'),
                 ),
               ],
             ),

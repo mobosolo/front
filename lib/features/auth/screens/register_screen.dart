@@ -23,6 +23,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
   final _phoneController = TextEditingController();
   UserRole _selectedRole = UserRole.client;
   bool _isLoading = false;
+  bool _obscurePassword = true;
 
   String _extractErrorMessage(Object e) {
     if (e is DioException) {
@@ -38,7 +39,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         }
       }
     }
-    return "Erreur d'inscription. Vérifiez les champs.";
+    return "Erreur d'inscription. Verifiez les champs.";
   }
 
   @override
@@ -76,11 +77,11 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
         await authNotifier.loadUser();
         final isAuthenticated = ref.read(authStateProvider).isAuthenticated;
         if (!isAuthenticated) {
-          throw Exception("Session invalide. Veuillez réessayer.");
+          throw Exception('Session invalide. Veuillez reessayer.');
         }
 
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Inscription réussie!')),
+          const SnackBar(content: Text('Inscription reussie!')),
         );
         context.go('/home');
       } else {
@@ -120,7 +121,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
           children: [
             const SizedBox(height: 8),
             Text(
-              'Créer un compte',
+              'Creer un compte',
               style: Theme.of(context).textTheme.headlineLarge,
             ),
             const SizedBox(height: 6),
@@ -161,15 +162,19 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _passwordController,
-                    decoration: const InputDecoration(
+                    decoration: InputDecoration(
                       hintText: '••••••••',
-                      prefixIcon: Icon(Icons.lock_outline),
+                      prefixIcon: const Icon(Icons.lock_outline),
+                      suffixIcon: IconButton(
+                        onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                        icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                      ),
                     ),
-                    obscureText: true,
-                    validator: (val) => val != null && val.length >= 6 ? null : '6 caractères minimum',
+                    obscureText: _obscurePassword,
+                    validator: (val) => val != null && val.length >= 6 ? null : '6 caracteres minimum',
                   ),
                   const SizedBox(height: 16),
-                  const Text('Téléphone (optionnel)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const Text('Telephone (optionnel)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _phoneController,
@@ -186,7 +191,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     children: [
                       Expanded(child: _roleButton('Client', UserRole.client)),
                       const SizedBox(width: 12),
-                      Expanded(child: _roleButton('Commerçant', UserRole.merchant)),
+                      Expanded(child: _roleButton('Commercant', UserRole.merchant)),
                     ],
                   ),
                   const SizedBox(height: 24),
@@ -197,7 +202,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                           style: ElevatedButton.styleFrom(
                             shape: const StadiumBorder(),
                           ),
-                          child: const Text('Créer mon compte'),
+                          child: const Text('Creer mon compte'),
                         ),
                 ],
               ),

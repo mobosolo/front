@@ -1,7 +1,9 @@
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
 class NotificationService {
   final FirebaseMessaging _firebaseMessaging = FirebaseMessaging.instance;
+  final FlutterLocalNotificationsPlugin _localNotifications = FlutterLocalNotificationsPlugin();
 
   Future<void> initialize() async {
     // Request permission
@@ -17,6 +19,22 @@ class NotificationService {
 
     print('User granted permission: ${settings.authorizationStatus}');
 
+    const AndroidInitializationSettings initializationSettingsAndroid =
+        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const InitializationSettings initializationSettings =
+        InitializationSettings(android: initializationSettingsAndroid);
+    await _localNotifications.initialize(initializationSettings);
+
+    const AndroidNotificationChannel channel = AndroidNotificationChannel(
+      'mealflavor_notifications',
+      'MealFlavor Notifications',
+      description: 'Notifications MealFlavor',
+      importance: Importance.high,
+    );
+    await _localNotifications
+        .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+        ?.createNotificationChannel(channel);
+
     // Get FCM token
     String? token = await _firebaseMessaging.getToken();
     print('FCM Token: $token');
@@ -28,8 +46,7 @@ class NotificationService {
 
       if (message.notification != null) {
         print('Message also contained a notification: ${message.notification}');
-        // Display notification to user
-        // You might use flutter_local_notifications for this
+        _showLocalNotification(message);
       }
     });
 
@@ -43,8 +60,30 @@ class NotificationService {
 
   Stream<RemoteMessage> get onMessage => FirebaseMessaging.onMessage;
   Stream<RemoteMessage> get onMessageOpenedApp => FirebaseMessaging.onMessageOpenedApp;
+
+  Future<void> _showLocalNotification(RemoteMessage message) async {
+    final notification = message.notification;
+    if (notification == null) return;
+
+    const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
+      'mealflavor_notifications',
+      'MealFlavor Notifications',
+      channelDescription: 'Notifications MealFlavor',
+      importance: Importance.high,
+      priority: Priority.high,
+    );
+    const NotificationDetails details = NotificationDetails(android: androidDetails);
+
+    await _localNotifications.show(
+      notification.hashCode,
+      notification.title,
+      notification.body,
+      details,
+    );
+  }
 }
 
+@pragma('vm:entry-point')
 Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
   // If you're going to use other Firebase services in the background, such as Firestore,
   // make sure you call `initializeApp` before using any other Firebase services.

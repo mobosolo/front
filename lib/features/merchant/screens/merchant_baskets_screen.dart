@@ -54,6 +54,29 @@ class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> {
     context.push('/edit-basket/$id');
   }
 
+  Future<void> _applyQuickUpdate(
+    BasketSummary basket, {
+    int? delta,
+    String? status,
+    int? shiftMinutes,
+  }) async {
+    try {
+      final service = ref.read(basketServiceProvider);
+      await service.quickUpdateBasket(
+        basket.id,
+        delta: delta,
+        status: status,
+        shiftMinutes: shiftMinutes,
+      );
+      _fetchBaskets();
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Erreur mise a jour: ${e.toString()}')),
+      );
+    }
+  }
+
   Future<void> _onDelete(String id) async {
     try {
       await ref.read(basketServiceProvider).deleteBasket(id);
@@ -139,35 +162,91 @@ class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> {
       ),
       child: Column(
         children: [
+          ClipRRect(
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+            child: SizedBox(
+              height: 160,
+              width: double.infinity,
+              child: _bannerImage(basket),
+            ),
+          ),
           Padding(
             padding: const EdgeInsets.all(14),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _thumb(basket.photoURL),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(basket.title, style: Theme.of(context).textTheme.bodyLarge),
-                      const SizedBox(height: 4),
-                      if (basket.pickupTimeStart != null && basket.pickupTimeEnd != null)
-                        Text(
-                          '${_time(basket.pickupTimeStart!)} - ${_time(basket.pickupTimeEnd!)}',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground),
-                        ),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          Text('Quantité: ${basket.availableQuantity ?? basket.discountedPrice}',
-                              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground)),
-                          Text('${basket.discountedPrice} F',
-                              style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.primary)),
-                        ],
-                      ),
-                    ],
+                Text(basket.title, style: Theme.of(context).textTheme.bodyLarge),
+                const SizedBox(height: 4),
+                if (basket.pickupTimeStart != null && basket.pickupTimeEnd != null)
+                  Text(
+                    '${_time(basket.pickupTimeStart!)} - ${_time(basket.pickupTimeEnd!)}',
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground),
                   ),
+                const SizedBox(height: 6),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text('Quantite: ${basket.availableQuantity ?? 0}',
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground)),
+                    Text('${basket.discountedPrice} F',
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.primary)),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  children: [
+                    _quickButton(
+                      label: '-1',
+                      icon: Icons.remove,
+                      color: AppTheme.destructive,
+                      onTap: () => _applyQuickUpdate(basket, delta: -1),
+                    ),
+                    _quickButton(
+                      label: '+1',
+                      icon: Icons.add,
+                      color: AppTheme.primary,
+                      onTap: () => _applyQuickUpdate(basket, delta: 1),
+                    ),
+                    _quickButton(
+                      label: basket.status == 'AVAILABLE' ? 'Pause' : 'Activer',
+                      icon: basket.status == 'AVAILABLE' ? Icons.pause_circle_outline : Icons.play_circle_outline,
+                      color: basket.status == 'AVAILABLE' ? AppTheme.secondary : AppTheme.success,
+                      onTap: () => _applyQuickUpdate(
+                        basket,
+                        status: basket.status == 'AVAILABLE' ? 'SOLD_OUT' : 'AVAILABLE',
+                      ),
+                    ),
+                    _quickButton(
+                      label: '-15 min',
+                      icon: Icons.schedule,
+                      color: AppTheme.mutedForeground,
+                      onTap: () => _applyQuickUpdate(basket, shiftMinutes: -15),
+                    ),
+                    _quickButton(
+                      label: '+15 min',
+                      icon: Icons.schedule,
+                      color: AppTheme.mutedForeground,
+                      onTap: () => _applyQuickUpdate(basket, shiftMinutes: 15),
+                    ),
+                    _quickButton(
+                      label: 'Dupliquer',
+                      icon: Icons.copy,
+                      color: AppTheme.primary,
+                      onTap: () async {
+                        try {
+                          await ref.read(basketServiceProvider).duplicateBasket(basket.id);
+                          _fetchBaskets();
+                        } catch (e) {
+                          if (!mounted) return;
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Erreur duplication: ${e.toString()}')),
+                          );
+                        }
+                      },
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -212,6 +291,83 @@ class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> {
           )
         ],
       ),
+    );
+  }
+
+  Widget _quickButton({
+    required String label,
+    required IconData icon,
+    required Color color,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+        decoration: BoxDecoration(
+          color: color.withOpacity(0.12),
+          borderRadius: BorderRadius.circular(999),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 14, color: color),
+            const SizedBox(width: 6),
+            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12)),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _statusBadge(String? status) {
+    final normalized = (status ?? 'AVAILABLE').toUpperCase();
+    final isAvailable = normalized == 'AVAILABLE';
+    final isSoldOut = normalized == 'SOLD_OUT';
+
+    final Color color = isAvailable
+        ? AppTheme.success
+        : isSoldOut
+            ? AppTheme.destructive
+            : AppTheme.mutedForeground;
+    final String label = isAvailable ? 'Disponible' : isSoldOut ? 'Pause' : 'Expire';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 11),
+      ),
+    );
+  }
+
+  Widget _bannerImage(BasketSummary basket) {
+    final image = basket.photoURL == null || basket.photoURL!.isEmpty
+        ? Container(
+            color: AppTheme.background,
+            child: const Icon(Icons.shopping_basket, color: AppTheme.mutedForeground, size: 40),
+          )
+        : Image.network(
+            basket.photoURL!,
+            width: double.infinity,
+            height: double.infinity,
+            fit: BoxFit.cover,
+          );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        image,
+        Positioned(
+          top: 10,
+          left: 10,
+          child: _statusBadge(basket.status),
+        ),
+      ],
     );
   }
 

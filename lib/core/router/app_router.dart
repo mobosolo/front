@@ -25,6 +25,7 @@ import 'package:front/features/orders/screens/merchant_order_details_screen.dart
 import 'package:front/features/admin/screens/admin_dashboard_screen.dart';
 import 'package:front/features/admin/screens/admin_merchants_screen.dart';
 import 'package:front/features/admin/screens/admin_users_screen.dart';
+import 'package:front/features/notifications/screens/notifications_screen.dart';
 
 final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
   final notifier = ValueNotifier<int>(0);
@@ -234,6 +235,12 @@ final goRouterProvider = Provider<GoRouter>((ref) {
           return const AdminUsersScreen();
         },
       ),
+      GoRoute(
+        path: '/notifications',
+        builder: (BuildContext context, GoRouterState state) {
+          return const NotificationsScreen();
+        },
+      ),
     ],
     redirect: (BuildContext context, GoRouterState state) {
       final authState = ref.read(authStateProvider);
@@ -277,7 +284,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
       }
 
       if (user.role == 'ADMIN') {
-        if (!isAdminArea && path != '/profile') {
+        if (!isAdminArea && path != '/profile' && path != '/notifications') {
           return '/admin-dashboard';
         }
         return null;
@@ -285,7 +292,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
 
       if (user.role == 'MERCHANT') {
         if (user.merchant == null) {
-          if (path != '/merchant-register' && path != '/profile') {
+          if (path != '/merchant-register' && path != '/profile' && path != '/notifications') {
             return '/merchant-register';
           }
         } else if (user.merchant!.status == 'APPROVED') {

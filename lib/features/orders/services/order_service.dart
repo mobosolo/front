@@ -79,5 +79,19 @@ class OrderService {
     }
   }
 
+  Future<void> confirmPayment(String orderId, {String? transactionRef}) async {
+    try {
+      await _dio.post(
+        '/orders/$orderId/confirm-payment',
+        data: {
+          if (transactionRef != null) 'transactionRef': transactionRef,
+        },
+      );
+    } on DioException catch (e) {
+      print('DioError confirming payment: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
   // TODO: Add methods for validatePickup
 }

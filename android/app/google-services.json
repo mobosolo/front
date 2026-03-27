@@ -1,36 +1,26 @@
 {
   "project_info": {
-    "project_number": "1080370938209",
-    "project_id": "meal-flavor",
-    "storage_bucket": "meal-flavor.firebasestorage.app"
+    "project_number": "528806922618",
+    "project_id": "flavor-b2d76",
+    "storage_bucket": "flavor-b2d76.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:1080370938209:android:3ca23b53bed6b87a8c8520",
+        "mobilesdk_app_id": "1:528806922618:android:d9c4302aa5824362d4aec3",
         "android_client_info": {
           "package_name": "com.example.front"
         }
       },
-      "oauth_client": [
-        {
-          "client_id": "1080370938209-3qc0c8vpn4oou419mitoit1e2jd33bqm.apps.googleusercontent.com",
-          "client_type": 3
-        }
-      ],
+      "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBcQTTkBTk4lA0IHOIFjh-6rqmw2f_f15E"
+          "current_key": "AIzaSyAvoZEJ2Q7SqqInoyR9lfRJfLn6lg2xkd4"
         }
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": [
-            {
-              "client_id": "1080370938209-3qc0c8vpn4oou419mitoit1e2jd33bqm.apps.googleusercontent.com",
-              "client_type": 3
-            }
-          ]
+          "other_platform_oauth_client": []
         }
       }
     }

@@ -5,6 +5,8 @@ import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/core/providers/storage_providers.dart';
 import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
+import 'package:front/features/orders/providers/order_providers.dart';
+import 'package:front/features/orders/models/order_model.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -28,6 +30,8 @@ class ProfileScreen extends ConsumerWidget {
             _header(context, user.displayName ?? 'Utilisateur'),
             const SizedBox(height: 8),
             _contactInfo(context, user.email, user.phoneNumber),
+            const SizedBox(height: 8),
+            _savingsCard(ref),
             const SizedBox(height: 8),
             _menuItems(context),
             const SizedBox(height: 8),
@@ -147,8 +151,167 @@ class ProfileScreen extends ConsumerWidget {
         child: Column(
           children: [
             _menuRow(Icons.shopping_bag_outlined, 'Mes commandes', () => context.push('/client-orders')),
+            const Divider(height: 1, color: AppTheme.border),
+            _menuRow(Icons.notifications_outlined, 'Notifications', () => context.push('/notifications')),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _savingsCard(WidgetRef ref) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0),
+      child: FutureBuilder<List<Order>>(
+        future: ref.read(orderServiceProvider).getClientOrders(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return _savingsContainer(
+              context,
+              title: 'Economies realisees',
+              value: 'Chargement...',
+              subtitle: 'Calcul en cours',
+            );
+          }
+          if (snapshot.hasError) {
+            return _savingsContainer(
+              context,
+              title: 'Economies realisees',
+              value: '—',
+              subtitle: 'Impossible de charger',
+            );
+          }
+
+          final orders = snapshot.data ?? [];
+          int totalSaved = 0;
+          int countedOrders = 0;
+          final recentSavings = <int>[];
+          final recentPercents = <int>[];
+
+          for (final order in orders) {
+            final status = order.orderStatus.toUpperCase();
+            if (status != 'PICKED_UP') continue;
+
+            final original = order.basket?.originalPrice;
+            final discounted = order.basket?.discountedPrice ?? order.price;
+            if (original != null && original > discounted) {
+              totalSaved += (original - discounted);
+              countedOrders += 1;
+              if (recentSavings.length < 7) {
+                recentSavings.add(original - discounted);
+                final percent = (((original - discounted) / original) * 100).round();
+                recentPercents.add(percent);
+              }
+            }
+          }
+          final avgSaved = countedOrders > 0 ? (totalSaved / countedOrders).round() : 0;
+          final avgPercent = recentPercents.isNotEmpty
+              ? (recentPercents.reduce((a, b) => a + b) / recentPercents.length).round()
+              : 0;
+
+          return _savingsContainer(
+            context,
+            title: 'Economies realisees',
+            value: '$totalSaved F',
+            subtitle: countedOrders > 0 ? '$countedOrders commande(s) retiree(s)' : 'Aucune economie pour l\'instant',
+            average: countedOrders > 0 ? 'Moyenne: $avgSaved F' : null,
+            percent: countedOrders > 0 ? 'Reduction moyenne: $avgPercent%' : null,
+            chartValues: recentSavings,
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _savingsContainer(
+    BuildContext context, {
+    required String title,
+    required String value,
+    required String subtitle,
+    String? average,
+    String? percent,
+    List<int> chartValues = const [],
+  }) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: const [
+          BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 4)),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppTheme.primary.withOpacity(0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.savings_outlined, color: AppTheme.primary),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: Theme.of(context).textTheme.titleMedium),
+                const SizedBox(height: 4),
+                Text(
+                  value,
+                  style: Theme.of(context)
+                      .textTheme
+                      .headlineSmall
+                      ?.copyWith(color: AppTheme.primary, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 2),
+                Text(subtitle, style: const TextStyle(color: AppTheme.mutedForeground)),
+                if (average != null) ...[
+                  const SizedBox(height: 6),
+                  Text(average, style: const TextStyle(color: AppTheme.mutedForeground)),
+                ],
+                if (percent != null) ...[
+                  const SizedBox(height: 4),
+                  Text(percent, style: const TextStyle(color: AppTheme.mutedForeground)),
+                ],
+                if (chartValues.isNotEmpty) ...[
+                  const SizedBox(height: 10),
+                  _miniBarChart(chartValues),
+                ] else ...[
+                  const SizedBox(height: 10),
+                  Text('Aucun historique pour le graphique', style: const TextStyle(color: AppTheme.mutedForeground)),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _miniBarChart(List<int> values) {
+    final maxValue = values.reduce((a, b) => a > b ? a : b);
+    return SizedBox(
+      height: 36,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: values.map((v) {
+          final height = maxValue > 0 ? (v / maxValue) * 36 : 4.0;
+          return Expanded(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 2),
+              child: Container(
+                height: height.clamp(4.0, 36.0),
+                decoration: BoxDecoration(
+                  color: AppTheme.primary.withOpacity(0.65),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            ),
+          );
+        }).toList(),
       ),
     );
   }

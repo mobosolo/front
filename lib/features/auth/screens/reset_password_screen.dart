@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
+import 'package:dio/dio.dart';
 
 class ResetPasswordScreen extends ConsumerStatefulWidget {
   final String? presetEmail;
@@ -19,6 +20,24 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
   final _passwordController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+  bool _obscurePassword = true;
+
+  String _extractErrorMessage(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        final msg = data['message'];
+        if (msg is String && msg.trim().isNotEmpty) return msg;
+        final errors = data['errors'];
+        if (errors is List && errors.isNotEmpty && errors.first is Map<String, dynamic>) {
+          final first = errors.first as Map<String, dynamic>;
+          final fieldMsg = first['msg'];
+          if (fieldMsg is String && fieldMsg.trim().isNotEmpty) return fieldMsg;
+        }
+      }
+    }
+    return 'Erreur lors de la reinitialisation. Verifiez le code.';
+  }
 
   @override
   void initState() {
@@ -53,7 +72,7 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: ${e.toString()}')),
+        SnackBar(content: Text(_extractErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
@@ -109,12 +128,16 @@ class _ResetPasswordScreenState extends ConsumerState<ResetPasswordScreen> {
                 const SizedBox(height: 16),
                 TextFormField(
                   controller: _passwordController,
-                  decoration: const InputDecoration(
+                  decoration: InputDecoration(
                     labelText: 'Nouveau mot de passe',
-                    prefixIcon: Icon(Icons.lock_outline),
+                    prefixIcon: const Icon(Icons.lock_outline),
+                    suffixIcon: IconButton(
+                      onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
+                      icon: Icon(_obscurePassword ? Icons.visibility_off : Icons.visibility),
+                    ),
                     border: OutlineInputBorder(),
                   ),
-                  obscureText: true,
+                  obscureText: _obscurePassword,
                   validator: (value) {
                     if (value == null || value.length < 6) {
                       return 'Minimum 6 caracteres';

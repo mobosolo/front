@@ -16,36 +16,39 @@ class BottomNav extends StatelessWidget {
   Widget build(BuildContext context) {
     final tabs = role == 'CLIENT' ? _clientTabs : _merchantTabs;
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        border: Border(top: BorderSide(color: AppTheme.border)),
-      ),
-      padding: const EdgeInsets.only(bottom: 8),
-      height: 64,
-      child: Row(
-        children: tabs.map((tab) {
-          final bool isActive = tab.id == activeTab;
-          return Expanded(
-            child: InkWell(
-              onTap: () => _navigate(context, tab.id),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(tab.icon, size: 24, color: isActive ? AppTheme.primary : Colors.grey[600]),
-                  const SizedBox(height: 4),
-                  Text(
-                    tab.label,
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: isActive ? AppTheme.primary : Colors.grey[600],
+    return SafeArea(
+      top: false,
+      child: Container(
+        decoration: const BoxDecoration(
+          color: Colors.white,
+          border: Border(top: BorderSide(color: AppTheme.border)),
+        ),
+        padding: const EdgeInsets.only(bottom: 8),
+        height: 64,
+        child: Row(
+          children: tabs.map((tab) {
+            final bool isActive = tab.id == activeTab;
+            return Expanded(
+              child: InkWell(
+                onTap: () => _navigate(context, tab.id),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(tab.icon, size: 24, color: isActive ? AppTheme.primary : Colors.grey[600]),
+                    const SizedBox(height: 4),
+                    Text(
+                      tab.label,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isActive ? AppTheme.primary : Colors.grey[600],
+                      ),
                     ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-          );
-        }).toList(),
+            );
+          }).toList(),
+        ),
       ),
     );
   }

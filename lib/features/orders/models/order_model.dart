@@ -97,12 +97,16 @@ class OrderBasketSummary {
   final String? photoURL;
   final DateTime? pickupTimeStart;
   final DateTime? pickupTimeEnd;
+  final int? originalPrice;
+  final int? discountedPrice;
 
   OrderBasketSummary({
     this.title,
     this.photoURL,
     this.pickupTimeStart,
     this.pickupTimeEnd,
+    this.originalPrice,
+    this.discountedPrice,
   });
 
   factory OrderBasketSummary.fromJson(Map<String, dynamic> json) {
@@ -111,6 +115,8 @@ class OrderBasketSummary {
       photoURL: json['photoURL'],
       pickupTimeStart: json['pickupTimeStart'] != null ? DateTime.parse(json['pickupTimeStart']) : null,
       pickupTimeEnd: json['pickupTimeEnd'] != null ? DateTime.parse(json['pickupTimeEnd']) : null,
+      originalPrice: _parseIntNullable(json['originalPrice']),
+      discountedPrice: _parseIntNullable(json['discountedPrice']),
     );
   }
 
@@ -120,8 +126,18 @@ class OrderBasketSummary {
       if (photoURL != null) 'photoURL': photoURL,
       if (pickupTimeStart != null) 'pickupTimeStart': pickupTimeStart!.toIso8601String(),
       if (pickupTimeEnd != null) 'pickupTimeEnd': pickupTimeEnd!.toIso8601String(),
+      if (originalPrice != null) 'originalPrice': originalPrice,
+      if (discountedPrice != null) 'discountedPrice': discountedPrice,
     };
   }
+}
+
+int? _parseIntNullable(dynamic value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  if (value is num) return value.toInt();
+  if (value is String) return int.tryParse(value);
+  return null;
 }
 
 class OrderMerchantSummary {

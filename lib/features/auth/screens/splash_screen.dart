@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
@@ -78,34 +79,43 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppTheme.primary,
-      body: Center(
-        child: FadeTransition(
-          opacity: _fade,
-          child: ScaleTransition(
-            scale: _scale,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AnimatedBuilder(
-                  animation: _rotate,
-                  builder: (context, child) {
-                    return Transform.rotate(angle: _rotate.value, child: child);
-                  },
-                  child: const Icon(Icons.eco, size: 80, color: Colors.white),
-                ),
-                const SizedBox(height: 24),
-                const Text(
-                  'MealFlavor',
-                  style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: Colors.white),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Mangez mieux. Gaspillez moins.',
-                  style: TextStyle(fontSize: 16, color: Colors.white70),
-                ),
-              ],
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: const SystemUiOverlayStyle(
+        statusBarColor: Colors.transparent,
+        statusBarIconBrightness: Brightness.light,
+        statusBarBrightness: Brightness.dark,
+        systemNavigationBarColor: AppTheme.primary,
+        systemNavigationBarIconBrightness: Brightness.light,
+      ),
+      child: Scaffold(
+        backgroundColor: AppTheme.primary,
+        body: Center(
+          child: FadeTransition(
+            opacity: _fade,
+            child: ScaleTransition(
+              scale: _scale,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  AnimatedBuilder(
+                    animation: _rotate,
+                    builder: (context, child) {
+                      return Transform.rotate(angle: _rotate.value, child: child);
+                    },
+                    child: const Icon(Icons.eco, size: 80, color: Colors.white),
+                  ),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'MealFlavor',
+                    style: TextStyle(fontSize: 28, fontWeight: FontWeight.w600, color: Colors.white),
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Mangez mieux. Gaspillez moins.',
+                    style: TextStyle(fontSize: 16, color: Colors.white70),
+                  ),
+                ],
+              ),
             ),
           ),
         ),

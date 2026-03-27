@@ -218,10 +218,40 @@ class _MerchantProfileScreenState extends ConsumerState<MerchantProfileScreen> {
         child: ListView(
           children: [
             _header(context, displayName, displayType),
+            _notificationsShortcut(context),
             _detailsSection(context, theme, hasMerchant),
             _logout(context, ref),
             const SizedBox(height: 24),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _notificationsShortcut(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 4)),
+          ],
+        ),
+        child: InkWell(
+          onTap: () => context.push('/notifications'),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.notifications_outlined, color: AppTheme.mutedForeground),
+                const SizedBox(width: 12),
+                const Expanded(child: Text('Notifications')),
+                Icon(Icons.chevron_right, color: Colors.grey[500]),
+              ],
+            ),
+          ),
         ),
       ),
     );

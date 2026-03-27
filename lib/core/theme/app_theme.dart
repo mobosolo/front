@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppTheme {
   static const Color background = Color(0xFFF9FAFB);
@@ -35,6 +36,13 @@ class AppTheme {
         backgroundColor: Colors.transparent,
         foregroundColor: foreground,
         elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent,
+          statusBarIconBrightness: Brightness.dark,
+          statusBarBrightness: Brightness.light,
+          systemNavigationBarColor: Colors.white,
+          systemNavigationBarIconBrightness: Brightness.dark,
+        ),
       ),
       dividerColor: border,
       inputDecorationTheme: InputDecorationTheme(
@@ -57,18 +65,44 @@ class AppTheme {
         style: ElevatedButton.styleFrom(
           backgroundColor: primary,
           foregroundColor: Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
           padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
           textStyle: const TextStyle(fontWeight: FontWeight.w600),
         ),
       ),
       textTheme: const TextTheme(
-        headlineLarge: TextStyle(fontSize: 32, fontWeight: FontWeight.w600, color: foreground),
-        headlineMedium: TextStyle(fontSize: 24, fontWeight: FontWeight.w600, color: foreground),
-        titleMedium: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: foreground),
-        bodyLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w400, color: foreground),
-        bodyMedium: TextStyle(fontSize: 14, fontWeight: FontWeight.w400, color: foreground),
-        labelLarge: TextStyle(fontSize: 16, fontWeight: FontWeight.w600, color: foreground),
+        headlineLarge: TextStyle(
+          fontSize: 32,
+          fontWeight: FontWeight.w600,
+          color: foreground,
+        ),
+        headlineMedium: TextStyle(
+          fontSize: 24,
+          fontWeight: FontWeight.w600,
+          color: foreground,
+        ),
+        titleMedium: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: foreground,
+        ),
+        bodyLarge: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w400,
+          color: foreground,
+        ),
+        bodyMedium: TextStyle(
+          fontSize: 14,
+          fontWeight: FontWeight.w400,
+          color: foreground,
+        ),
+        labelLarge: TextStyle(
+          fontSize: 16,
+          fontWeight: FontWeight.w600,
+          color: foreground,
+        ),
       ),
     );
   }

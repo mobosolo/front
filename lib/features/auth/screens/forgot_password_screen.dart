@@ -2,6 +2,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
+import 'package:dio/dio.dart';
 
 class ForgotPasswordScreen extends ConsumerStatefulWidget {
   const ForgotPasswordScreen({super.key});
@@ -14,6 +15,23 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
   final _emailController = TextEditingController();
   final _formKey = GlobalKey<FormState>();
   bool _isLoading = false;
+
+  String _extractErrorMessage(Object e) {
+    if (e is DioException) {
+      final data = e.response?.data;
+      if (data is Map<String, dynamic>) {
+        final msg = data['message'];
+        if (msg is String && msg.trim().isNotEmpty) return msg;
+        final errors = data['errors'];
+        if (errors is List && errors.isNotEmpty && errors.first is Map<String, dynamic>) {
+          final first = errors.first as Map<String, dynamic>;
+          final fieldMsg = first['msg'];
+          if (fieldMsg is String && fieldMsg.trim().isNotEmpty) return fieldMsg;
+        }
+      }
+    }
+    return 'Erreur lors de la demande. Verifiez votre email.';
+  }
 
   @override
   void dispose() {
@@ -32,7 +50,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
 
       final token = response['token']?.toString();
       final message = response['message']?.toString() ??
-          'Si votre email est correct, vous recevrez un lien de reinitialisation.';
+          'Si votre email est correct, un message de reinitialisation a ete envoye.';
 
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(message)),
@@ -47,7 +65,7 @@ class _ForgotPasswordScreenState extends ConsumerState<ForgotPasswordScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: ${e.toString()}')),
+        SnackBar(content: Text(_extractErrorMessage(e))),
       );
     } finally {
       if (mounted) setState(() => _isLoading = false);
