@@ -5,6 +5,7 @@ import 'package:front/features/orders/providers/order_providers.dart';
 import 'package:front/features/orders/models/order_model.dart';
 import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class MerchantSalesHistoryScreen extends ConsumerStatefulWidget {
   final String? initialTab;
@@ -20,7 +21,7 @@ class MerchantSalesHistoryScreen extends ConsumerStatefulWidget {
   ConsumerState<MerchantSalesHistoryScreen> createState() => _MerchantSalesHistoryScreenState();
 }
 
-class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistoryScreen> {
+class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistoryScreen> with RouteRefreshMixin {
   List<Order> _orders = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -39,6 +40,11 @@ class _MerchantSalesHistoryScreenState extends ConsumerState<MerchantSalesHistor
         );
       }
     });
+  }
+
+  @override
+  void onRouteResumed() {
+    _fetchMerchantOrders();
   }
 
   Future<void> _fetchMerchantOrders() async {

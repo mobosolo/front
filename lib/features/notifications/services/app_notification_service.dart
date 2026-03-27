@@ -36,4 +36,22 @@ class AppNotificationService {
       rethrow;
     }
   }
+
+  Future<void> deleteNotification(String id) async {
+    try {
+      await _dio.delete('/notifications/$id');
+    } on DioException catch (e) {
+      print('DioError deleting notification: ${e.response?.data}');
+      rethrow;
+    }
+  }
+
+  Future<void> deleteAll() async {
+    try {
+      await _dio.delete('/notifications');
+    } on DioException catch (e) {
+      print('DioError deleting all notifications: ${e.response?.data}');
+      rethrow;
+    }
+  }
 }

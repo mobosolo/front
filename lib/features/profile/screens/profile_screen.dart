@@ -7,6 +7,8 @@ import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
 import 'package:front/features/orders/providers/order_providers.dart';
 import 'package:front/features/orders/models/order_model.dart';
+import 'package:front/features/notifications/providers/app_notification_providers.dart';
+import 'package:front/features/notifications/services/app_notification_service.dart';
 
 class ProfileScreen extends ConsumerWidget {
   const ProfileScreen({super.key});
@@ -33,7 +35,7 @@ class ProfileScreen extends ConsumerWidget {
             const SizedBox(height: 8),
             _savingsCard(ref),
             const SizedBox(height: 8),
-            _menuItems(context),
+            _menuItems(context, ref),
             const SizedBox(height: 8),
             _logout(context, ref),
             const SizedBox(height: 24),
@@ -137,7 +139,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _menuItems(BuildContext context) {
+  Widget _menuItems(BuildContext context, WidgetRef ref) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0),
       child: Container(
@@ -152,7 +154,12 @@ class ProfileScreen extends ConsumerWidget {
           children: [
             _menuRow(Icons.shopping_bag_outlined, 'Mes commandes', () => context.push('/client-orders')),
             const Divider(height: 1, color: AppTheme.border),
-            _menuRow(Icons.notifications_outlined, 'Notifications', () => context.push('/notifications')),
+            _menuRow(
+              Icons.notifications_outlined,
+              'Notifications',
+              () => context.push('/notifications'),
+              trailing: _unreadBadge(ref),
+            ),
           ],
         ),
       ),
@@ -316,7 +323,7 @@ class ProfileScreen extends ConsumerWidget {
     );
   }
 
-  Widget _menuRow(IconData icon, String label, VoidCallback onTap, {bool hasBorder = false}) {
+  Widget _menuRow(IconData icon, String label, VoidCallback onTap, {bool hasBorder = false, Widget? trailing}) {
     return InkWell(
       onTap: onTap,
       child: Container(
@@ -329,9 +336,37 @@ class ProfileScreen extends ConsumerWidget {
             Icon(icon, color: AppTheme.mutedForeground),
             const SizedBox(width: 12),
             Expanded(child: Text(label)),
+            if (trailing != null) ...[
+              const SizedBox(width: 8),
+              trailing,
+            ],
           ],
         ),
       ),
+    );
+  }
+
+  Widget _unreadBadge(WidgetRef ref) {
+    final AppNotificationService service = ref.read(appNotificationServiceProvider);
+    return FutureBuilder(
+      future: service.getNotifications(limit: 100, offset: 0),
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const SizedBox.shrink();
+        final unread = snapshot.data!.where((n) => !n.isRead).length;
+        if (unread == 0) return const SizedBox.shrink();
+        final label = unread > 99 ? '99+' : unread.toString();
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+          decoration: BoxDecoration(
+            color: AppTheme.primary,
+            borderRadius: BorderRadius.circular(999),
+          ),
+          child: Text(
+            label,
+            style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+          ),
+        );
+      },
     );
   }
 

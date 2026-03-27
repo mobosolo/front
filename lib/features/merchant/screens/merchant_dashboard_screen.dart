@@ -6,6 +6,7 @@ import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
 import 'package:front/features/merchant/models/merchant_stats_model.dart';
 import 'package:front/features/merchant/providers/merchant_providers.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class MerchantDashboardScreen extends ConsumerStatefulWidget {
   const MerchantDashboardScreen({super.key});
@@ -14,13 +15,18 @@ class MerchantDashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<MerchantDashboardScreen> createState() => _MerchantDashboardScreenState();
 }
 
-class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScreen> {
+class _MerchantDashboardScreenState extends ConsumerState<MerchantDashboardScreen> with RouteRefreshMixin {
   MerchantDailyStats? _stats;
   bool _isLoadingStats = true;
 
   @override
   void initState() {
     super.initState();
+    _loadStats();
+  }
+
+  @override
+  void onRouteResumed() {
     _loadStats();
   }
 

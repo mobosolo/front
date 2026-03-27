@@ -9,6 +9,7 @@ class BasketSummary {
   final DateTime? pickupTimeEnd;
   final String? photoURL;
   final String? status;
+  final int? quantity;
   final int? availableQuantity;
   final BasketMerchantSummary? merchant;
 
@@ -23,6 +24,7 @@ class BasketSummary {
     this.pickupTimeEnd,
     this.photoURL,
     this.status,
+    this.quantity,
     this.availableQuantity,
     this.merchant,
   });
@@ -40,6 +42,7 @@ class BasketSummary {
       pickupTimeEnd: json['pickupTimeEnd'] != null ? DateTime.parse(json['pickupTimeEnd']) : null,
       photoURL: json['photoURL'],
       status: json['status']?.toString(),
+      quantity: _parseInt(json['quantity']),
       availableQuantity: _parseInt(json['availableQuantity']),
       merchant: merchantJson is Map<String, dynamic>
           ? BasketMerchantSummary.fromJson(merchantJson)

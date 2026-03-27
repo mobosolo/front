@@ -40,6 +40,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
     super.dispose();
   }
 
+
   void _next() {
     if (_current < _slides.length - 1) {
       _controller.nextPage(

@@ -11,6 +11,8 @@ import 'package:front/core/widgets/bottom_nav.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/features/merchant/models/merchant_model.dart';
 import 'package:front/features/merchant/providers/merchant_providers.dart';
+import 'package:front/features/notifications/providers/app_notification_providers.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class MerchantProfileScreen extends ConsumerStatefulWidget {
   final String? merchantId;
@@ -21,7 +23,7 @@ class MerchantProfileScreen extends ConsumerStatefulWidget {
   ConsumerState<MerchantProfileScreen> createState() => _MerchantProfileScreenState();
 }
 
-class _MerchantProfileScreenState extends ConsumerState<MerchantProfileScreen> {
+class _MerchantProfileScreenState extends ConsumerState<MerchantProfileScreen> with RouteRefreshMixin {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _businessNameController;
   late TextEditingController _typeController;
@@ -46,6 +48,11 @@ class _MerchantProfileScreenState extends ConsumerState<MerchantProfileScreen> {
     _latitudeController = TextEditingController();
     _longitudeController = TextEditingController();
     _photoURLController = TextEditingController();
+    _loadMerchantData();
+  }
+
+  @override
+  void onRouteResumed() {
     _loadMerchantData();
   }
 
@@ -219,6 +226,7 @@ class _MerchantProfileScreenState extends ConsumerState<MerchantProfileScreen> {
           children: [
             _header(context, displayName, displayType),
             _notificationsShortcut(context),
+            _statsShortcut(context),
             _detailsSection(context, theme, hasMerchant),
             _logout(context, ref),
             const SizedBox(height: 24),
@@ -229,6 +237,7 @@ class _MerchantProfileScreenState extends ConsumerState<MerchantProfileScreen> {
   }
 
   Widget _notificationsShortcut(BuildContext context) {
+    final service = ref.read(appNotificationServiceProvider);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8),
       child: Container(
@@ -248,6 +257,56 @@ class _MerchantProfileScreenState extends ConsumerState<MerchantProfileScreen> {
                 const Icon(Icons.notifications_outlined, color: AppTheme.mutedForeground),
                 const SizedBox(width: 12),
                 const Expanded(child: Text('Notifications')),
+                FutureBuilder(
+                  future: service.getNotifications(limit: 100, offset: 0),
+                  builder: (context, snapshot) {
+                    if (!snapshot.hasData) return const SizedBox.shrink();
+                    final unread = snapshot.data!.where((n) => !n.isRead).length;
+                    if (unread == 0) return const SizedBox.shrink();
+                    final label = unread > 99 ? '99+' : unread.toString();
+                    return Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      margin: const EdgeInsets.only(right: 8),
+                      decoration: BoxDecoration(
+                        color: AppTheme.primary,
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Text(
+                        label,
+                        style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                      ),
+                    );
+                  },
+                ),
+                Icon(Icons.chevron_right, color: Colors.grey[500]),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _statsShortcut(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 8),
+      child: Container(
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: const [
+            BoxShadow(color: Color(0x14000000), blurRadius: 10, offset: Offset(0, 4)),
+          ],
+        ),
+        child: InkWell(
+          onTap: () => context.push('/merchant-dashboard'),
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                const Icon(Icons.bar_chart_outlined, color: AppTheme.mutedForeground),
+                const SizedBox(width: 12),
+                const Expanded(child: Text('Statistiques')),
                 Icon(Icons.chevron_right, color: Colors.grey[500]),
               ],
             ),

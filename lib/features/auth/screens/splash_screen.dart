@@ -77,6 +77,7 @@ class _SplashScreenState extends ConsumerState<SplashScreen> with SingleTickerPr
     super.dispose();
   }
 
+
   @override
   Widget build(BuildContext context) {
     return AnnotatedRegion<SystemUiOverlayStyle>(

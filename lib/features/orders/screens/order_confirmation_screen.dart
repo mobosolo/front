@@ -8,6 +8,7 @@ import 'package:front/features/orders/providers/order_providers.dart';
 import 'package:front/features/orders/models/order_model.dart';
 import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class OrderConfirmationScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -18,7 +19,7 @@ class OrderConfirmationScreen extends ConsumerStatefulWidget {
   ConsumerState<OrderConfirmationScreen> createState() => _OrderConfirmationScreenState();
 }
 
-class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScreen> {
+class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScreen> with RouteRefreshMixin {
   Order? _order;
   bool _isLoading = true;
   String? _errorMessage;
@@ -27,6 +28,11 @@ class _OrderConfirmationScreenState extends ConsumerState<OrderConfirmationScree
   @override
   void initState() {
     super.initState();
+    _fetchOrderDetails();
+  }
+
+  @override
+  void onRouteResumed() {
     _fetchOrderDetails();
   }
 

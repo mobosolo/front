@@ -5,6 +5,7 @@ import 'package:front/core/widgets/bottom_nav.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/features/notifications/models/app_notification_model.dart';
 import 'package:front/features/notifications/providers/app_notification_providers.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class NotificationsScreen extends ConsumerStatefulWidget {
   const NotificationsScreen({super.key});
@@ -13,13 +14,19 @@ class NotificationsScreen extends ConsumerStatefulWidget {
   ConsumerState<NotificationsScreen> createState() => _NotificationsScreenState();
 }
 
-class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
+class _NotificationsScreenState extends ConsumerState<NotificationsScreen> with RouteRefreshMixin {
   bool _loading = true;
   List<AppNotification> _notifications = [];
+  bool _isDeletingAll = false;
 
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  @override
+  void onRouteResumed() {
     _load();
   }
 
@@ -90,6 +97,65 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
     }
   }
 
+  Future<void> _deleteNotification(AppNotification notif) async {
+    try {
+      final service = ref.read(appNotificationServiceProvider);
+      await service.deleteNotification(notif.id);
+      if (!mounted) return;
+      setState(() {
+        _notifications = _notifications.where((n) => n.id != notif.id).toList();
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur suppression notification: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _deleteAll() async {
+    if (_notifications.isEmpty) return;
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Supprimer toutes les notifications ?'),
+        content: const Text('Cette action est irreversible.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.destructive),
+            child: const Text('Supprimer', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+    if (confirm != true) return;
+
+    setState(() {
+      _isDeletingAll = true;
+      _notifications = [];
+    });
+    try {
+      final service = ref.read(appNotificationServiceProvider);
+      await service.deleteAll();
+      if (!mounted) return;
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Erreur suppression notifications: $e')),
+        );
+        _load();
+      }
+    } finally {
+      if (mounted) setState(() => _isDeletingAll = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final authState = ref.watch(authStateProvider);
@@ -107,15 +173,51 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
                 onRefresh: _load,
                 child: _loading
                     ? const Center(child: CircularProgressIndicator())
+                    : _isDeletingAll
+                        ? const Center(child: CircularProgressIndicator())
                     : _notifications.isEmpty
                         ? const Center(child: Text('Aucune notification'))
                         : ListView.separated(
                             padding: const EdgeInsets.all(16),
                             itemBuilder: (context, index) {
                               final notif = _notifications[index];
-                              return _NotificationCard(
-                                notification: notif,
-                                onTap: () => _markRead(notif),
+                              return Dismissible(
+                                key: ValueKey(notif.id),
+                                direction: DismissDirection.endToStart,
+                                background: Container(
+                                  alignment: Alignment.centerRight,
+                                  padding: const EdgeInsets.symmetric(horizontal: 20),
+                                  decoration: BoxDecoration(
+                                    color: AppTheme.destructive.withOpacity(0.9),
+                                    borderRadius: BorderRadius.circular(16),
+                                  ),
+                                  child: const Icon(Icons.delete, color: Colors.white),
+                                ),
+                                confirmDismiss: (_) async {
+                                  return await showDialog<bool>(
+                                    context: context,
+                                    builder: (context) => AlertDialog(
+                                      title: const Text('Supprimer la notification ?'),
+                                      content: const Text('Voulez-vous supprimer cette notification ?'),
+                                      actions: [
+                                        TextButton(
+                                          onPressed: () => Navigator.pop(context, false),
+                                          child: const Text('Annuler'),
+                                        ),
+                                        ElevatedButton(
+                                          onPressed: () => Navigator.pop(context, true),
+                                          style: ElevatedButton.styleFrom(backgroundColor: AppTheme.destructive),
+                                          child: const Text('Supprimer', style: TextStyle(color: Colors.white)),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                },
+                                onDismissed: (_) => _deleteNotification(notif),
+                                child: _NotificationCard(
+                                  notification: notif,
+                                  onTap: () => _markRead(notif),
+                                ),
                               );
                             },
                             separatorBuilder: (_, __) => const SizedBox(height: 12),
@@ -144,9 +246,23 @@ class _NotificationsScreenState extends ConsumerState<NotificationsScreen> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text('Notifications', style: Theme.of(context).textTheme.headlineMedium),
-          IconButton(
-            onPressed: _load,
-            icon: const Icon(Icons.refresh),
+          Row(
+            children: [
+              IconButton(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh),
+              ),
+              IconButton(
+                onPressed: _isDeletingAll ? null : _deleteAll,
+                icon: _isDeletingAll
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.delete_outline),
+              ),
+            ],
           ),
         ],
       ),

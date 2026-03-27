@@ -33,6 +33,7 @@ class _QrScannerScreenState extends ConsumerState<QrScannerScreen> {
     super.dispose();
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(

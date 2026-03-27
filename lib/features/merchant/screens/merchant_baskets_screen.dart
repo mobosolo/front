@@ -6,6 +6,7 @@ import 'package:front/features/baskets/models/basket_summary_model.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class MerchantBasketsScreen extends ConsumerStatefulWidget {
   const MerchantBasketsScreen({super.key});
@@ -14,7 +15,7 @@ class MerchantBasketsScreen extends ConsumerStatefulWidget {
   ConsumerState<MerchantBasketsScreen> createState() => _MerchantBasketsScreenState();
 }
 
-class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> {
+class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> with RouteRefreshMixin {
   List<BasketSummary> _baskets = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -22,6 +23,11 @@ class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> {
   @override
   void initState() {
     super.initState();
+    _fetchBaskets();
+  }
+
+  @override
+  void onRouteResumed() {
     _fetchBaskets();
   }
 
@@ -186,68 +192,14 @@ class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> {
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Quantite: ${basket.availableQuantity ?? 0}',
+                    Text(
+                      _quantityLabel(basket),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(color: AppTheme.mutedForeground)),
                     Text('${basket.discountedPrice} F',
                         style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.primary)),
                   ],
                 ),
                 const SizedBox(height: 8),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: [
-                    _quickButton(
-                      label: '-1',
-                      icon: Icons.remove,
-                      color: AppTheme.destructive,
-                      onTap: () => _applyQuickUpdate(basket, delta: -1),
-                    ),
-                    _quickButton(
-                      label: '+1',
-                      icon: Icons.add,
-                      color: AppTheme.primary,
-                      onTap: () => _applyQuickUpdate(basket, delta: 1),
-                    ),
-                    _quickButton(
-                      label: basket.status == 'AVAILABLE' ? 'Pause' : 'Activer',
-                      icon: basket.status == 'AVAILABLE' ? Icons.pause_circle_outline : Icons.play_circle_outline,
-                      color: basket.status == 'AVAILABLE' ? AppTheme.secondary : AppTheme.success,
-                      onTap: () => _applyQuickUpdate(
-                        basket,
-                        status: basket.status == 'AVAILABLE' ? 'SOLD_OUT' : 'AVAILABLE',
-                      ),
-                    ),
-                    _quickButton(
-                      label: '-15 min',
-                      icon: Icons.schedule,
-                      color: AppTheme.mutedForeground,
-                      onTap: () => _applyQuickUpdate(basket, shiftMinutes: -15),
-                    ),
-                    _quickButton(
-                      label: '+15 min',
-                      icon: Icons.schedule,
-                      color: AppTheme.mutedForeground,
-                      onTap: () => _applyQuickUpdate(basket, shiftMinutes: 15),
-                    ),
-                    _quickButton(
-                      label: 'Dupliquer',
-                      icon: Icons.copy,
-                      color: AppTheme.primary,
-                      onTap: () async {
-                        try {
-                          await ref.read(basketServiceProvider).duplicateBasket(basket.id);
-                          _fetchBaskets();
-                        } catch (e) {
-                          if (!mounted) return;
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(content: Text('Erreur duplication: ${e.toString()}')),
-                          );
-                        }
-                      },
-                    ),
-                  ],
-                ),
               ],
             ),
           ),
@@ -294,57 +246,6 @@ class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> {
     );
   }
 
-  Widget _quickButton({
-    required String label,
-    required IconData icon,
-    required Color color,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-        decoration: BoxDecoration(
-          color: color.withOpacity(0.12),
-          borderRadius: BorderRadius.circular(999),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(icon, size: 14, color: color),
-            const SizedBox(width: 6),
-            Text(label, style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 12)),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _statusBadge(String? status) {
-    final normalized = (status ?? 'AVAILABLE').toUpperCase();
-    final isAvailable = normalized == 'AVAILABLE';
-    final isSoldOut = normalized == 'SOLD_OUT';
-
-    final Color color = isAvailable
-        ? AppTheme.success
-        : isSoldOut
-            ? AppTheme.destructive
-            : AppTheme.mutedForeground;
-    final String label = isAvailable ? 'Disponible' : isSoldOut ? 'Pause' : 'Expire';
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withOpacity(0.12),
-        borderRadius: BorderRadius.circular(999),
-      ),
-      child: Text(
-        label,
-        style: TextStyle(color: color, fontWeight: FontWeight.w600, fontSize: 11),
-      ),
-    );
-  }
-
   Widget _bannerImage(BasketSummary basket) {
     final image = basket.photoURL == null || basket.photoURL!.isEmpty
         ? Container(
@@ -362,11 +263,6 @@ class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> {
       fit: StackFit.expand,
       children: [
         image,
-        Positioned(
-          top: 10,
-          left: 10,
-          child: _statusBadge(basket.status),
-        ),
       ],
     );
   }
@@ -415,5 +311,14 @@ class _MerchantBasketsScreenState extends ConsumerState<MerchantBasketsScreen> {
     final h = dt.hour.toString().padLeft(2, '0');
     final m = dt.minute.toString().padLeft(2, '0');
     return '$h:$m';
+  }
+
+  String _quantityLabel(BasketSummary basket) {
+    final total = basket.quantity ?? 0;
+    final available = basket.availableQuantity ?? total;
+    if (total > 0 && available >= 0 && available != total) {
+      return 'Quantite: $total (Restant: $available)';
+    }
+    return 'Quantite: $available';
   }
 }

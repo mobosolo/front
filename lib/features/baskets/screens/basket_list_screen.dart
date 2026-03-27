@@ -7,6 +7,7 @@ import 'package:front/core/widgets/bottom_nav.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/features/baskets/models/basket_summary_model.dart';
 import 'package:front/features/baskets/providers/basket_providers.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class BasketListScreen extends ConsumerStatefulWidget {
   const BasketListScreen({super.key});
@@ -15,7 +16,7 @@ class BasketListScreen extends ConsumerStatefulWidget {
   ConsumerState<BasketListScreen> createState() => _BasketListScreenState();
 }
 
-class _BasketListScreenState extends ConsumerState<BasketListScreen> {
+class _BasketListScreenState extends ConsumerState<BasketListScreen> with RouteRefreshMixin {
   List<BasketSummary> _baskets = [];
   bool _isLoading = false;
   String? _selectedCategory;
@@ -32,6 +33,11 @@ class _BasketListScreenState extends ConsumerState<BasketListScreen> {
   @override
   void initState() {
     super.initState();
+    _fetchBaskets();
+  }
+
+  @override
+  void onRouteResumed() {
     _fetchBaskets();
   }
 

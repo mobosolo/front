@@ -26,6 +26,7 @@ import 'package:front/features/admin/screens/admin_dashboard_screen.dart';
 import 'package:front/features/admin/screens/admin_merchants_screen.dart';
 import 'package:front/features/admin/screens/admin_users_screen.dart';
 import 'package:front/features/notifications/screens/notifications_screen.dart';
+import 'package:front/core/router/route_observer.dart';
 
 final _routerRefreshProvider = Provider<ValueNotifier<int>>((ref) {
   final notifier = ValueNotifier<int>(0);
@@ -42,6 +43,7 @@ final goRouterProvider = Provider<GoRouter>((ref) {
   return GoRouter(
     initialLocation: '/splash',
     refreshListenable: refreshListenable,
+    observers: [routeObserver],
     routes: <RouteBase>[
       GoRoute(
         path: '/',

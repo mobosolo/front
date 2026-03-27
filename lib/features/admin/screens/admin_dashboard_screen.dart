@@ -7,6 +7,7 @@ import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/core/widgets/admin_bottom_nav.dart';
 import 'package:front/features/admin/models/admin_models.dart';
 import 'package:front/features/admin/providers/admin_providers.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class AdminDashboardScreen extends ConsumerStatefulWidget {
   const AdminDashboardScreen({super.key});
@@ -15,7 +16,7 @@ class AdminDashboardScreen extends ConsumerStatefulWidget {
   ConsumerState<AdminDashboardScreen> createState() => _AdminDashboardScreenState();
 }
 
-class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
+class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> with RouteRefreshMixin {
   AdminStats? _stats;
   List<AdminMerchant> _pending = [];
   bool _isLoading = true;
@@ -24,6 +25,11 @@ class _AdminDashboardScreenState extends ConsumerState<AdminDashboardScreen> {
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  @override
+  void onRouteResumed() {
     _load();
   }
 

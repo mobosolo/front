@@ -100,6 +100,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
     }
   }
 
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -174,7 +175,7 @@ class _RegisterScreenState extends ConsumerState<RegisterScreen> {
                     validator: (val) => val != null && val.length >= 6 ? null : '6 caracteres minimum',
                   ),
                   const SizedBox(height: 16),
-                  const Text('Telephone (optionnel)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+                  const Text('Telephone', style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
                   const SizedBox(height: 8),
                   TextFormField(
                     controller: _phoneController,

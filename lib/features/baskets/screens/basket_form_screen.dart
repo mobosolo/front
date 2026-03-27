@@ -9,6 +9,7 @@ import 'package:front/features/baskets/models/basket_model.dart';
 import 'package:front/features/baskets/providers/basket_providers.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class BasketFormScreen extends ConsumerStatefulWidget {
   final String? basketId;
@@ -19,7 +20,7 @@ class BasketFormScreen extends ConsumerStatefulWidget {
   ConsumerState<BasketFormScreen> createState() => _BasketFormScreenState();
 }
 
-class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
+class _BasketFormScreenState extends ConsumerState<BasketFormScreen> with RouteRefreshMixin {
   final _formKey = GlobalKey<FormState>();
   late TextEditingController _titleController;
   late TextEditingController _descriptionController;
@@ -46,6 +47,13 @@ class _BasketFormScreenState extends ConsumerState<BasketFormScreen> {
     _pickupTimeStart = DateTime.now().add(const Duration(hours: 1));
     _pickupTimeEnd = DateTime.now().add(const Duration(hours: 3));
 
+    if (widget.basketId != null) {
+      _loadBasketData(widget.basketId!);
+    }
+  }
+
+  @override
+  void onRouteResumed() {
     if (widget.basketId != null) {
       _loadBasketData(widget.basketId!);
     }

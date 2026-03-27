@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:front/features/orders/providers/order_providers.dart';
 import 'package:front/features/orders/models/order_model.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class MerchantOrderDetailsScreen extends ConsumerStatefulWidget {
   final String orderId;
@@ -12,7 +13,7 @@ class MerchantOrderDetailsScreen extends ConsumerStatefulWidget {
   ConsumerState<MerchantOrderDetailsScreen> createState() => _MerchantOrderDetailsScreenState();
 }
 
-class _MerchantOrderDetailsScreenState extends ConsumerState<MerchantOrderDetailsScreen> {
+class _MerchantOrderDetailsScreenState extends ConsumerState<MerchantOrderDetailsScreen> with RouteRefreshMixin {
   Order? _order;
   bool _isLoading = true;
   String? _errorMessage;
@@ -20,6 +21,11 @@ class _MerchantOrderDetailsScreenState extends ConsumerState<MerchantOrderDetail
   @override
   void initState() {
     super.initState();
+    _fetchOrderDetails();
+  }
+
+  @override
+  void onRouteResumed() {
     _fetchOrderDetails();
   }
 

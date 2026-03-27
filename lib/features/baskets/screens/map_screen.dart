@@ -8,6 +8,7 @@ import 'package:front/core/widgets/bottom_nav.dart';
 import 'package:front/features/baskets/models/basket_summary_model.dart';
 import 'package:front/features/baskets/providers/basket_providers.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class MapScreen extends ConsumerStatefulWidget {
   final double? targetLat;
@@ -27,7 +28,7 @@ class MapScreen extends ConsumerStatefulWidget {
   ConsumerState<MapScreen> createState() => _MapScreenState();
 }
 
-class _MapScreenState extends ConsumerState<MapScreen> {
+class _MapScreenState extends ConsumerState<MapScreen> with RouteRefreshMixin {
   bool _isLoading = true;
   String? _errorMessage;
   List<BasketSummary> _baskets = [];
@@ -39,6 +40,11 @@ class _MapScreenState extends ConsumerState<MapScreen> {
   @override
   void initState() {
     super.initState();
+    _loadMapData();
+  }
+
+  @override
+  void onRouteResumed() {
     _loadMapData();
   }
 

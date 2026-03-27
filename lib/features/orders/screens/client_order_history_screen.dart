@@ -5,6 +5,7 @@ import 'package:front/features/orders/providers/order_providers.dart';
 import 'package:front/features/orders/models/order_model.dart';
 import 'package:front/core/theme/app_theme.dart';
 import 'package:front/core/widgets/bottom_nav.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class ClientOrderHistoryScreen extends ConsumerStatefulWidget {
   final String? initialTab;
@@ -20,11 +21,11 @@ class ClientOrderHistoryScreen extends ConsumerStatefulWidget {
   ConsumerState<ClientOrderHistoryScreen> createState() => _ClientOrderHistoryScreenState();
 }
 
-class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScreen> {
+class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScreen> with RouteRefreshMixin {
   List<Order> _orders = [];
   bool _isLoading = true;
   String? _errorMessage;
-  late String _activeTab; // active | completed | cancelled
+  late String _activeTab; // active | completed
 
   @override
   void initState() {
@@ -41,9 +42,14 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
     });
   }
 
+  @override
+  void onRouteResumed() {
+    _fetchClientOrders();
+  }
+
   String _resolveInitialTab(String? initialTab) {
-    if (initialTab == 'completed' || initialTab == 'cancelled') {
-      return initialTab!;
+    if (initialTab == 'completed') {
+      return initialTab ?? 'active';
     }
     return 'active';
   }
@@ -71,25 +77,8 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
     return _orders.where((order) {
       final status = order.orderStatus.toUpperCase();
       if (_activeTab == 'active') return status == 'RESERVED';
-      if (_activeTab == 'completed') return status == 'PICKED_UP';
-      return status == 'CANCELLED';
+      return status == 'PICKED_UP';
     }).toList();
-  }
-
-  Future<void> _cancelOrder(Order order) async {
-    try {
-      await ref.read(orderServiceProvider).cancelOrder(order.id);
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Commande annulee.')),
-      );
-      await _fetchClientOrders();
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Erreur: ${e.toString()}')),
-      );
-    }
   }
 
   @override
@@ -125,7 +114,6 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
                       .map((order) => _OrderCard(
                             order: order,
                             onTap: _activeTab == 'active' ? () => context.push('/order-confirmation/${order.id}') : null,
-                            onCancel: _activeTab == 'active' ? () => _cancelOrder(order) : null,
                           ))
                       .toList(),
                 ),
@@ -151,8 +139,6 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
               _tabChip('active', 'Actives'),
               const SizedBox(width: 8),
               _tabChip('completed', 'Terminées'),
-              const SizedBox(width: 8),
-              _tabChip('cancelled', 'Annulées'),
             ],
           ),
         ],
@@ -182,11 +168,7 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
   }
 
   Widget _emptyState() {
-    final label = _activeTab == 'active'
-        ? 'actives'
-        : _activeTab == 'completed'
-            ? 'terminées'
-            : 'annulées';
+    final label = _activeTab == 'active' ? 'actives' : 'terminées';
     return Column(
       children: [
         const Icon(Icons.shopping_bag_outlined, size: 48, color: AppTheme.mutedForeground),
@@ -206,9 +188,8 @@ class _ClientOrderHistoryScreenState extends ConsumerState<ClientOrderHistoryScr
 class _OrderCard extends StatelessWidget {
   final Order order;
   final VoidCallback? onTap;
-  final VoidCallback? onCancel;
 
-  const _OrderCard({required this.order, this.onTap, this.onCancel});
+  const _OrderCard({required this.order, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -293,20 +274,6 @@ class _OrderCard extends StatelessWidget {
                         Text('${order.price} F', style: Theme.of(context).textTheme.bodyMedium),
                       ],
                     ),
-                    if (status == 'RESERVED' && onCancel != null) ...[
-                      const SizedBox(height: 10),
-                      SizedBox(
-                        width: double.infinity,
-                        child: OutlinedButton(
-                          onPressed: onCancel,
-                          style: OutlinedButton.styleFrom(
-                            foregroundColor: AppTheme.destructive,
-                            side: const BorderSide(color: AppTheme.destructive),
-                          ),
-                          child: const Text('Annuler la commande'),
-                        ),
-                      ),
-                    ],
                     const SizedBox(height: 6),
                     Text(
                       _formatDate(order.createdAt),

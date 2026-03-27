@@ -5,6 +5,7 @@ import 'package:front/features/baskets/providers/basket_providers.dart';
 import 'package:front/features/baskets/models/basket_model.dart';
 import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/core/theme/app_theme.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class BasketDetailsScreen extends ConsumerStatefulWidget {
   final String basketId;
@@ -15,7 +16,7 @@ class BasketDetailsScreen extends ConsumerStatefulWidget {
   ConsumerState<BasketDetailsScreen> createState() => _BasketDetailsScreenState();
 }
 
-class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
+class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> with RouteRefreshMixin {
   Basket? _basket;
   bool _isLoading = true;
   String? _errorMessage;
@@ -23,6 +24,11 @@ class _BasketDetailsScreenState extends ConsumerState<BasketDetailsScreen> {
   @override
   void initState() {
     super.initState();
+    _fetchBasketDetails();
+  }
+
+  @override
+  void onRouteResumed() {
     _fetchBasketDetails();
   }
 

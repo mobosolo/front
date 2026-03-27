@@ -7,6 +7,7 @@ import 'package:front/features/auth/providers/auth_providers.dart';
 import 'package:front/core/widgets/admin_bottom_nav.dart';
 import 'package:front/features/admin/models/admin_models.dart';
 import 'package:front/features/admin/providers/admin_providers.dart';
+import 'package:front/core/utils/route_refresh_mixin.dart';
 
 class AdminUsersScreen extends ConsumerStatefulWidget {
   const AdminUsersScreen({super.key});
@@ -15,7 +16,7 @@ class AdminUsersScreen extends ConsumerStatefulWidget {
   ConsumerState<AdminUsersScreen> createState() => _AdminUsersScreenState();
 }
 
-class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
+class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> with RouteRefreshMixin {
   List<AdminUser> _users = [];
   bool _isLoading = true;
   String? _errorMessage;
@@ -24,6 +25,11 @@ class _AdminUsersScreenState extends ConsumerState<AdminUsersScreen> {
   @override
   void initState() {
     super.initState();
+    _load();
+  }
+
+  @override
+  void onRouteResumed() {
     _load();
   }
 
